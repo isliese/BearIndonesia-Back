@@ -1,6 +1,7 @@
-package com.example.bearindonesia.repository;
+package com.bearindonesia.repository;
 
-import com.example.bearindonesia.domain.Keyword;
+import com.bearindonesia.domain.Keyword;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface KeywordRepository extends JpaRepository<Keyword, Long> {}
+

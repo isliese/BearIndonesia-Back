@@ -1,4 +1,4 @@
-package com.example.bearindonesia.domain;
+package com.bearindonesia.domain;
 
 import java.time.LocalDate;
 
@@ -60,3 +60,4 @@ public class Article {
     @Column(columnDefinition = "TEXT")
     private String tagsJson;
 }
+

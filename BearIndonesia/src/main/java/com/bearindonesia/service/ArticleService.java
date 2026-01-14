@@ -1,8 +1,8 @@
-package com.example.bearindonesia.service;
+package com.bearindonesia.service;
 
-import com.example.bearindonesia.dto.ArticleDto;
-import com.example.bearindonesia.domain.Article;
-import com.example.bearindonesia.repository.ArticleRepository;
+import com.bearindonesia.dto.ArticleDto;
+import com.bearindonesia.domain.Article;
+import com.bearindonesia.repository.ArticleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -83,3 +83,4 @@ public class ArticleService {
         return saved;
     }
 }
+

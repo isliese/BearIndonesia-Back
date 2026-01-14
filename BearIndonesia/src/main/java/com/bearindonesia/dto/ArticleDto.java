@@ -1,4 +1,4 @@
-package com.example.bearindonesia.dto;
+package com.bearindonesia.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDate;
@@ -26,3 +26,4 @@ public class ArticleDto {
 
     public List<KeywordDto> tags;
 }
+

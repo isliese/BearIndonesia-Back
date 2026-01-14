@@ -1,6 +1,6 @@
-package com.example.bearindonesia.repository;
+package com.bearindonesia.repository;
 
-import com.example.bearindonesia.domain.Article;
+import com.bearindonesia.domain.Article;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -49,3 +49,4 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     """)
     List<Article> searchWithFilter(@Param("q") String q, @Param("filterType") String filterType);
 }
+

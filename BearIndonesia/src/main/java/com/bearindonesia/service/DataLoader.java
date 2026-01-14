@@ -1,4 +1,4 @@
-package com.example.bearindonesia.service;
+package com.bearindonesia.service;
 
 import java.io.InputStream;
 import java.time.LocalDate;
@@ -7,8 +7,8 @@ import java.time.format.DateTimeFormatter;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import com.example.bearindonesia.domain.Article;
-import com.example.bearindonesia.repository.ArticleRepository;
+import com.bearindonesia.domain.Article;
+import com.bearindonesia.repository.ArticleRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -102,3 +102,4 @@ public class DataLoader implements CommandLineRunner {
         return node.has(fieldName) && !node.get(fieldName).isNull() ? node.get(fieldName).asText() : null;
     }
 }
+

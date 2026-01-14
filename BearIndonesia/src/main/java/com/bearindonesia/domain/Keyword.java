@@ -1,4 +1,4 @@
-package com.example.bearindonesia.domain;
+package com.bearindonesia.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -33,3 +33,4 @@ public class Keyword {
     public Article getArticle() { return article; }
     public void setArticle(Article article) { this.article = article; }
 }
+

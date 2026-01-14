@@ -1,5 +1,6 @@
-package com.example.bearindonesia.dto;
+package com.bearindonesia.dto;
 
 public class KeywordDto {
     public String name;
 }
+

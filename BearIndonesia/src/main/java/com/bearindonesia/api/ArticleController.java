@@ -1,7 +1,7 @@
-package com.example.bearindonesia.api;
+package com.bearindonesia.api;
 
-import com.example.bearindonesia.domain.Article;
-import com.example.bearindonesia.service.ArticleService;
+import com.bearindonesia.domain.Article;
+import com.bearindonesia.service.ArticleService;
 import lombok.Data;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,3 +41,4 @@ public class ArticleController {
         private List<Article> results;
     }
 }
+

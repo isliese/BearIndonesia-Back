@@ -1,7 +1,7 @@
-package com.example.bearindonesia.ingest;
+package com.bearindonesia.ingest;
 
-import com.example.bearindonesia.dto.ArticleDto;
-import com.example.bearindonesia.service.ArticleService;
+import com.bearindonesia.dto.ArticleDto;
+import com.bearindonesia.service.ArticleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,3 +26,4 @@ public class IngestController {
         return ResponseEntity.ok().body(String.format("OK: %d items ingested", saved));
     }
 }
+
