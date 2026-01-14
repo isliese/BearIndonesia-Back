@@ -1,7 +1,7 @@
-package com.example.demo.controller;
+package com.example.bearindonesia.ingest;
 
-import com.example.demo.dto.NewsDto;
-import com.example.demo.service.NewsService;
+import com.example.bearindonesia.dto.ArticleDto;
+import com.example.bearindonesia.service.ArticleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,19 +11,18 @@ import java.util.List;
 @RequestMapping("/ingest")
 public class IngestController {
 
-    private final NewsService newsService;
+    private final ArticleService articleService;
 
-    public IngestController(NewsService newsService) {
-        this.newsService = newsService;
+    public IngestController(ArticleService articleService) {
+        this.articleService = articleService;
     }
 
-    // 루트: 배열 [] 로 전송받음
     @PostMapping("/news")
-    public ResponseEntity<?> ingestNews(@RequestBody List<NewsDto> items) {
+    public ResponseEntity<?> ingestNews(@RequestBody List<ArticleDto> items) {
         if (items == null || items.isEmpty()) {
             return ResponseEntity.badRequest().body("Empty payload");
         }
-        int saved = newsService.upsertAll(items);
+        int saved = articleService.upsertAll(items);
         return ResponseEntity.ok().body(String.format("OK: %d items ingested", saved));
     }
 }

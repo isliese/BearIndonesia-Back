@@ -1,11 +1,11 @@
-package com.example.demo.dto;
+package com.example.bearindonesia.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDate;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class NewsDto {
+public class ArticleDto {
     public String title;
     public String korTitle;
     public String engTitle;
@@ -24,5 +24,5 @@ public class NewsDto {
     public Integer importance;
     public String importanceRationale;
 
-    public List<TagDto> tags;
+    public List<KeywordDto> tags;
 }

@@ -1,8 +1,7 @@
-// src/main/java/com/example/demo/controller/SearchController.java
-package com.example.demo.controller;
+package com.example.bearindonesia.api;
 
-import com.example.demo.entity.News;
-import com.example.demo.service.SearchService;
+import com.example.bearindonesia.domain.Article;
+import com.example.bearindonesia.service.ArticleService;
 import lombok.Data;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,11 +9,12 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-public class SearchController {
+public class ArticleController {
 
-    private final SearchService searchService;
-    public SearchController(SearchService searchService) {
-        this.searchService = searchService;
+    private final ArticleService articleService;
+
+    public ArticleController(ArticleService articleService) {
+        this.articleService = articleService;
     }
 
     @PostMapping("/search")
@@ -23,10 +23,10 @@ public class SearchController {
         String sortBy = req.getSortBy() != null ? req.getSortBy() : "relevance";
         String filterType = req.getFilterType() != null ? req.getFilterType() : "all";
 
-        List<News> results = searchService.searchNews(query, sortBy, filterType);
+        List<Article> results = articleService.searchArticles(query, sortBy, filterType);
         SearchResponse resp = new SearchResponse();
         resp.setResults(results);
-        return resp; // 프론트가 기대하는 { results: [...] }
+        return resp;
     }
 
     @Data
@@ -38,6 +38,6 @@ public class SearchController {
 
     @Data
     public static class SearchResponse {
-        private List<News> results;
+        private List<Article> results;
     }
 }

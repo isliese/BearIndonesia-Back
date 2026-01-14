@@ -1,4 +1,4 @@
-package com.example.demo.entity;
+package com.example.bearindonesia.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -7,23 +7,22 @@ import jakarta.persistence.*;
 @Table(name = "news_tags", indexes = {
     @Index(name = "ix_news_tags_news_id", columnList = "news_id")
 })
-public class Tag {
+public class Keyword {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // JSON에서는 { "name": "..." }
     @Column(length = 100, nullable = false)
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "news_id", nullable = false)
     @JsonIgnore
-    private News news;
+    private Article article;
 
-    public Tag() {}
-    public Tag(String name) { this.name = name; }
+    public Keyword() {}
+    public Keyword(String name) { this.name = name; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -31,6 +30,6 @@ public class Tag {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public News getNews() { return news; }
-    public void setNews(News news) { this.news = news; }
+    public Article getArticle() { return article; }
+    public void setArticle(Article article) { this.article = article; }
 }

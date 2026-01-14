@@ -1,4 +1,4 @@
-package com.example.demo.entity;
+package com.example.bearindonesia.domain;
 
 import java.time.LocalDate;
 
@@ -17,10 +17,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class News {
+public class Article {
 
     @Id
-    
     private Long id;
 
     @Column(length = 1000)
@@ -58,7 +57,6 @@ public class News {
     @Column(columnDefinition = "TEXT")
     private String importanceRationale;
 
-    // tags를 JSON으로 저장
     @Column(columnDefinition = "TEXT")
     private String tagsJson;
 }
