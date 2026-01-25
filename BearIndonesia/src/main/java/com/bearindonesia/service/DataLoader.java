@@ -29,57 +29,57 @@ public class DataLoader implements CommandLineRunner {
     @Override
     public void run(String... args) {
         try {
-            loadFromRawNews();
+            loadFromProcessedNews();
         } catch (Exception e) {
             System.err.println("Data load failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private void loadFromRawNews() {
+    private void loadFromProcessedNews() {
         try {
             int count = 0;
-            for (Article raw : jdbcTemplate.query("SELECT * FROM raw_news", new RawNewsRowMapper())) {
-                if (raw.getLink() == null || raw.getLink().isBlank()) {
+            for (Article processed : jdbcTemplate.query("SELECT * FROM processed_news", new ProcessedNewsRowMapper())) {
+                if (processed.getLink() == null || processed.getLink().isBlank()) {
                     continue;
                 }
 
-                Article article = articleRepository.findByLink(raw.getLink()).orElseGet(Article::new);
-                if (article.getId() == null && raw.getId() != null) {
-                    article.setId(raw.getId());
+                Article article = articleRepository.findByLink(processed.getLink()).orElseGet(Article::new);
+                if (article.getId() == null && processed.getId() != null) {
+                    article.setId(processed.getId());
                 }
                 if (article.getId() == null) {
-                    article.setLink(raw.getLink());
+                    article.setLink(processed.getLink());
                 }
 
-                article.setTitle(raw.getTitle());
-                article.setKorTitle(raw.getKorTitle());
-                article.setEngTitle(raw.getEngTitle());
-                article.setContent(raw.getContent());
-                article.setLink(raw.getLink());
-                article.setDate(raw.getDate());
-                article.setCategory(raw.getCategory());
-                article.setEngCategory(raw.getEngCategory());
-                article.setSource(raw.getSource());
-                article.setKorSummary(raw.getKorSummary());
-                article.setEngSummary(raw.getEngSummary());
-                article.setTranslated(raw.getTranslated());
-                article.setImportance(raw.getImportance());
-                article.setImportanceRationale(raw.getImportanceRationale());
-                article.setTagsJson(raw.getTagsJson());
+                article.setTitle(processed.getTitle());
+                article.setKorTitle(processed.getKorTitle());
+                article.setEngTitle(processed.getEngTitle());
+                article.setContent(processed.getContent());
+                article.setLink(processed.getLink());
+                article.setDate(processed.getDate());
+                article.setCategory(processed.getCategory());
+                article.setEngCategory(processed.getEngCategory());
+                article.setSource(processed.getSource());
+                article.setKorSummary(processed.getKorSummary());
+                article.setEngSummary(processed.getEngSummary());
+                article.setTranslated(processed.getTranslated());
+                article.setImportance(processed.getImportance());
+                article.setImportanceRationale(processed.getImportanceRationale());
+                article.setTagsJson(processed.getTagsJson());
 
                 articleRepository.save(article);
                 count++;
             }
 
-            System.out.println("raw_news loaded: " + count + " rows");
+            System.out.println("processed_news loaded: " + count + " rows");
         } catch (Exception e) {
-            System.err.println("raw_news load failed: " + e.getMessage());
+            System.err.println("processed_news load failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private static class RawNewsRowMapper implements RowMapper<Article> {
+    private static class ProcessedNewsRowMapper implements RowMapper<Article> {
         private Set<String> columns;
 
         @Override
