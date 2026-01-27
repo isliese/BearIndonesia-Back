@@ -38,6 +38,7 @@ public class ArticleService {
                 r.source,
                 p.kor_title,
                 p.kor_summary,
+                p.id_summary,
                 p.kor_content,
                 p.category,
                 p.eng_category,
@@ -85,6 +86,7 @@ public class ArticleService {
                 r.source,
                 p.kor_title,
                 p.kor_summary,
+                p.id_summary,
                 p.kor_content,
                 p.category,
                 p.eng_category,
@@ -117,6 +119,7 @@ public class ArticleService {
         dto.engCategory = rs.getString("eng_category");
         dto.korSummary = rs.getString("kor_summary");
         dto.engSummary = null;
+        dto.idSummary = rs.getString("id_summary");
         dto.translated = rs.getString("kor_content");
         dto.importance = rs.getObject("importance") == null ? null : rs.getInt("importance");
         dto.importanceRationale = rs.getString("importance_rationale");

@@ -21,6 +21,7 @@ public class ArticleDto {
 
     public String korSummary;
     public String engSummary;
+    public String idSummary;
     public String translated;
 
     public Integer importance;
