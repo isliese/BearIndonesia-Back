@@ -39,7 +39,7 @@ public class CombinedNewsService {
             pn.eng_category AS pn_eng_category,
             pn.tags AS pn_tags,
             pn.importance AS pn_importance,
-            pn.importance_rationale AS pn_importance_rationale,
+            pn.insight AS pn_insight,
             pn.is_pharma_related AS pn_is_pharma_related,
             pn.title_filter_reason AS pn_title_filter_reason,
             pn.model AS pn_model,
@@ -159,7 +159,7 @@ public class CombinedNewsService {
             dto.engCategory = rs.getString("pn_eng_category");
             dto.tags = readJson(rs.getString("pn_tags"));
             dto.importance = getInteger(rs, "pn_importance");
-            dto.importanceRationale = rs.getString("pn_importance_rationale");
+            dto.insight = rs.getString("pn_insight");
             dto.isPharmaRelated = getBoolean(rs, "pn_is_pharma_related");
             dto.titleFilterReason = rs.getString("pn_title_filter_reason");
             dto.model = rs.getString("pn_model");

@@ -27,7 +27,7 @@ public class CombinedNewsDto {
     public String engCategory;
     public JsonNode tags;
     public Integer importance;
-    public String importanceRationale;
+    public String insight;
     public Boolean isPharmaRelated;
     public String titleFilterReason;
     public String model;
