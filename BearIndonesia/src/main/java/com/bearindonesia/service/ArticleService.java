@@ -39,6 +39,9 @@ public class ArticleService {
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
+                p.semantic_confidence,
+                p.tag_mismatch,
+                p.category_mismatch,
                 p.kor_content,
                 p.category,
                 p.eng_category,
@@ -87,6 +90,9 @@ public class ArticleService {
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
+                p.semantic_confidence,
+                p.tag_mismatch,
+                p.category_mismatch,
                 p.kor_content,
                 p.category,
                 p.eng_category,
@@ -120,6 +126,10 @@ public class ArticleService {
         dto.korSummary = rs.getString("kor_summary");
         dto.engSummary = null;
         dto.idSummary = rs.getString("id_summary");
+        Object confObj = rs.getObject("semantic_confidence");
+        dto.semanticConfidence = confObj == null ? null : ((Number) confObj).floatValue();
+        dto.tagMismatch = (Boolean) rs.getObject("tag_mismatch");
+        dto.categoryMismatch = (Boolean) rs.getObject("category_mismatch");
         dto.translated = rs.getString("kor_content");
         dto.importance = rs.getObject("importance") == null ? null : rs.getInt("importance");
         dto.importanceRationale = rs.getString("importance_rationale");

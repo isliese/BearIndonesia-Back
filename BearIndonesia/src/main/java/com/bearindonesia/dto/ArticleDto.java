@@ -22,6 +22,10 @@ public class ArticleDto {
     public String korSummary;
     public String engSummary;
     public String idSummary;
+
+    public Float semanticConfidence;
+    public Boolean tagMismatch;
+    public Boolean categoryMismatch;
     public String translated;
 
     public Integer importance;
