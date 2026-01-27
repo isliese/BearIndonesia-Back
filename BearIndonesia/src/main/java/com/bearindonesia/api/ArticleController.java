@@ -30,7 +30,7 @@ public class ArticleController {
     }
 
     @GetMapping("/articles")
-    public List<com.bearindonesia.dto.ArticleDto> listArticles() {
+    public List<ArticleDto> listArticles() {
         return articleService.listProcessedArticles();
     }
 
@@ -46,4 +46,3 @@ public class ArticleController {
         private List<ArticleDto> results;
     }
 }
-

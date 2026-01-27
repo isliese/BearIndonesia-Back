@@ -9,4 +9,3 @@ public class BearIndonesiaApplication {
     SpringApplication.run(BearIndonesiaApplication.class, args);
   }
 }
-
