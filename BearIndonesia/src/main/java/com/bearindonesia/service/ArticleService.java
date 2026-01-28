@@ -130,7 +130,7 @@ public class ArticleService {
         dto.semanticConfidence = confObj == null ? null : ((Number) confObj).floatValue();
         dto.tagMismatch = (Boolean) rs.getObject("tag_mismatch");
         dto.categoryMismatch = (Boolean) rs.getObject("category_mismatch");
-        dto.translated = rs.getString("kor_content");
+        dto.korContent = rs.getString("kor_content");
         dto.importance = rs.getObject("importance") == null ? null : rs.getInt("importance");
         dto.insight = rs.getString("insight");
 

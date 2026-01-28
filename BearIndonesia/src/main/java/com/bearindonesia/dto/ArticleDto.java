@@ -26,11 +26,10 @@ public class ArticleDto {
     public Float semanticConfidence;
     public Boolean tagMismatch;
     public Boolean categoryMismatch;
-    public String translated;
+    public String korContent;
 
     public Integer importance;
     public String insight;
 
     public List<KeywordDto> tags;
 }
-
