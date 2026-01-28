@@ -8,6 +8,8 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ArticleDto {
+    public Long id;
+    public Long rawNewsId;
     public String title;
     public String korTitle;
     public String engTitle;

@@ -31,6 +31,7 @@ public class ArticleService {
         String sql = """
             SELECT
                 p.id,
+                p.raw_news_id,
                 r.title,
                 r.link,
                 r.content,
@@ -82,6 +83,7 @@ public class ArticleService {
         String sql = """
             SELECT
                 p.id,
+                p.raw_news_id,
                 r.title,
                 r.link,
                 r.content,
@@ -114,6 +116,7 @@ public class ArticleService {
         String sql = """
             SELECT
                 p.id,
+                p.raw_news_id,
                 r.title,
                 r.link,
                 r.content,
@@ -143,6 +146,10 @@ public class ArticleService {
 
     private ArticleDto toDto(ResultSet rs) throws SQLException {
         ArticleDto dto = new ArticleDto();
+        Object idObj = rs.getObject("id");
+        dto.id = idObj == null ? null : ((Number) idObj).longValue();
+        Object rawIdObj = rs.getObject("raw_news_id");
+        dto.rawNewsId = rawIdObj == null ? null : ((Number) rawIdObj).longValue();
         dto.title = rs.getString("title");
         dto.korTitle = rs.getString("kor_title");
         dto.engTitle = null;
