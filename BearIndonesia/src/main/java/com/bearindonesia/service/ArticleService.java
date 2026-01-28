@@ -110,6 +110,37 @@ public class ArticleService {
         return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs));
     }
 
+    public List<ArticleDto> listScrappedArticles(Long userId) {
+        String sql = """
+            SELECT
+                p.id,
+                r.title,
+                r.link,
+                r.content,
+                r.published_date,
+                r.source,
+                p.kor_title,
+                p.kor_summary,
+                p.id_summary,
+                p.semantic_confidence,
+                p.tag_mismatch,
+                p.category_mismatch,
+                p.kor_content,
+                p.category,
+                p.eng_category,
+                p.importance,
+                p.insight,
+                p.tags
+            FROM user_scrap s
+            JOIN processed_news p ON p.raw_news_id = s.raw_news_id
+            JOIN raw_news r ON r.id = p.raw_news_id
+            WHERE s.user_id = ?
+              AND p.is_pharma_related IS TRUE
+            ORDER BY s.created_at DESC, p.id DESC
+            """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs), userId);
+    }
+
     private ArticleDto toDto(ResultSet rs) throws SQLException {
         ArticleDto dto = new ArticleDto();
         dto.title = rs.getString("title");
