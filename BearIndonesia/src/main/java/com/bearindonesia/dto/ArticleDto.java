@@ -29,7 +29,7 @@ public class ArticleDto {
     public String translated;
 
     public Integer importance;
-    public String importanceRationale;
+    public String insight;
 
     public List<KeywordDto> tags;
 }

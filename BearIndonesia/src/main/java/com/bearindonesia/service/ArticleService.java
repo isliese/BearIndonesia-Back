@@ -46,7 +46,7 @@ public class ArticleService {
                 p.category,
                 p.eng_category,
                 p.importance,
-                p.importance_rationale,
+                p.insight,
                 p.tags
             FROM processed_news p
             JOIN raw_news r ON r.id = p.raw_news_id
@@ -97,7 +97,7 @@ public class ArticleService {
                 p.category,
                 p.eng_category,
                 p.importance,
-                p.importance_rationale,
+                p.insight,
                 p.tags
             FROM processed_news p
             JOIN raw_news r ON r.id = p.raw_news_id
@@ -132,7 +132,7 @@ public class ArticleService {
         dto.categoryMismatch = (Boolean) rs.getObject("category_mismatch");
         dto.translated = rs.getString("kor_content");
         dto.importance = rs.getObject("importance") == null ? null : rs.getInt("importance");
-        dto.importanceRationale = rs.getString("importance_rationale");
+        dto.insight = rs.getString("insight");
 
         String tagsJson = rs.getString("tags");
         dto.tags = parseTags(tagsJson);
