@@ -39,6 +39,17 @@ public class UserRepository {
         jdbcTemplate.update("UPDATE users_info SET last_login_at = NOW() WHERE id = ?", userId);
     }
 
+    public boolean updatePassword(Long userId, String currentPassword, String newPassword) {
+        String sql = """
+            UPDATE users_info
+            SET password_hash = crypt(?, gen_salt('bf'))
+            WHERE id = ?
+              AND password_hash = crypt(?, password_hash)
+            """;
+        int updated = jdbcTemplate.update(sql, newPassword, userId, currentPassword);
+        return updated > 0;
+    }
+
     private RowMapper<UserInfo> userRowMapper() {
         return (rs, rowNum) -> new UserInfo(
                 rs.getLong("id"),

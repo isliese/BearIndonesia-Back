@@ -36,6 +36,17 @@ public class AuthService {
         return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name()));
     }
 
+    public void changePassword(Long userId, ChangePasswordRequest req) {
+        validateChangePassword(req);
+        if (req.currentPassword().equals(req.newPassword())) {
+            throw new UnauthorizedException("새 비밀번호가 현재 비밀번호와 같습니다.");
+        }
+        boolean updated = userRepository.updatePassword(userId, req.currentPassword(), req.newPassword());
+        if (!updated) {
+            throw new UnauthorizedException("현재 비밀번호가 올바르지 않습니다.");
+        }
+    }
+
     private void validateRegister(RegisterRequest req) {
         if (req == null || req.email() == null || req.name() == null || req.password() == null) {
             throw new UnauthorizedException("필수 값이 누락되었습니다.");
@@ -51,6 +62,18 @@ public class AuthService {
         }
         if (req.email().isBlank() || req.password().isBlank()) {
             throw new UnauthorizedException("필수 값이 비어 있습니다.");
+        }
+    }
+
+    private void validateChangePassword(ChangePasswordRequest req) {
+        if (req == null || req.currentPassword() == null || req.newPassword() == null || req.confirmPassword() == null) {
+            throw new UnauthorizedException("필수 값이 누락되었습니다.");
+        }
+        if (req.currentPassword().isBlank() || req.newPassword().isBlank() || req.confirmPassword().isBlank()) {
+            throw new UnauthorizedException("필수 값이 비어 있습니다.");
+        }
+        if (!req.newPassword().equals(req.confirmPassword())) {
+            throw new UnauthorizedException("새 비밀번호가 일치하지 않습니다.");
         }
     }
 }

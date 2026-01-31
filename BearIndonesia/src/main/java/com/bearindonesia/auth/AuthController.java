@@ -31,4 +31,11 @@ public class AuthController {
         AuthUser user = SecurityUtils.requireUser();
         return ResponseEntity.ok(new UserResponse(user.id(), user.email(), user.name()));
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest req) {
+        AuthUser user = SecurityUtils.requireUser();
+        authService.changePassword(user.id(), req);
+        return ResponseEntity.noContent().build();
+    }
 }
