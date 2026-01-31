@@ -45,6 +45,7 @@ public class ArticleService {
                 r.content,
                 r.published_date,
                 r.source,
+                r.img,
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
@@ -97,6 +98,7 @@ public class ArticleService {
                 r.content,
                 r.published_date,
                 r.source,
+                r.img,
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
@@ -133,6 +135,7 @@ public class ArticleService {
                 r.content,
                 r.published_date,
                 r.source,
+                r.img,
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
@@ -220,6 +223,7 @@ public class ArticleService {
                 r.content,
                 r.published_date,
                 r.source,
+                r.img,
                 p.kor_title,
                 p.kor_summary,
                 p.id_summary,
@@ -257,6 +261,7 @@ public class ArticleService {
             ? rs.getDate("published_date").toLocalDate()
             : null;
         dto.source = rs.getString("source");
+        dto.img = rs.getString("img");
         dto.category = rs.getString("category");
         dto.engCategory = rs.getString("eng_category");
         dto.korSummary = rs.getString("kor_summary");
