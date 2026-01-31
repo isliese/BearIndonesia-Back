@@ -3,11 +3,19 @@ package com.bearindonesia.service;
 import com.bearindonesia.dto.ArticleDto;
 import com.bearindonesia.dto.KeywordDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -110,6 +118,92 @@ public class ArticleService {
                 p.id DESC
             """;
         return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs));
+    }
+
+    public List<ArticleDto> listProcessedArticlesByMonth(int year, int month) {
+        YearMonth ym = YearMonth.of(year, month);
+        LocalDate start = ym.atDay(1);
+        LocalDate end = ym.atEndOfMonth();
+        String sql = """
+            SELECT
+                p.id,
+                p.raw_news_id,
+                r.title,
+                r.link,
+                r.content,
+                r.published_date,
+                r.source,
+                p.kor_title,
+                p.kor_summary,
+                p.id_summary,
+                p.semantic_confidence,
+                p.tag_mismatch,
+                p.category_mismatch,
+                p.kor_content,
+                p.category,
+                p.eng_category,
+                p.importance,
+                p.insight,
+                p.tags
+            FROM processed_news p
+            JOIN raw_news r ON r.id = p.raw_news_id
+            WHERE p.is_pharma_related IS TRUE
+              AND r.published_date BETWEEN ? AND ?
+            ORDER BY
+                r.published_date DESC NULLS LAST,
+                p.id DESC
+            """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs), start, end);
+    }
+
+    public byte[] exportProcessedArticlesExcel(int year, int month) {
+        List<ArticleDto> rows = listProcessedArticlesByMonth(year, month);
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet(String.format("%04d-%02d", year, month));
+
+            Row header = sheet.createRow(0);
+            String[] columns = new String[] {
+                "날짜",
+                "언론사",
+                "카테고리",
+                "키워드",
+                "헤드라인_국문",
+                "요약_국문",
+                "헤드라인_영문",
+                "요약_영문",
+                "본문_국문",
+                "본문_인도네시아어",
+                "링크",
+                "중요도"
+            };
+            for (int i = 0; i < columns.length; i++) {
+                header.createCell(i).setCellValue(columns[i]);
+            }
+
+            int rowIdx = 1;
+            for (ArticleDto a : rows) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
+                row.createCell(1).setCellValue(a.source != null ? a.source : "");
+                row.createCell(2).setCellValue(a.category != null ? a.category : "");
+                row.createCell(3).setCellValue(a.tags != null
+                    ? a.tags.stream().map(t -> t.name).reduce("", (acc, name) -> acc.isEmpty() ? name : acc + ", " + name)
+                    : "");
+                row.createCell(4).setCellValue(a.korTitle != null ? a.korTitle : "");
+                row.createCell(5).setCellValue(a.korSummary != null ? a.korSummary : "");
+                row.createCell(6).setCellValue(a.engTitle != null ? a.engTitle : "");
+                row.createCell(7).setCellValue(a.engSummary != null ? a.engSummary : "");
+                row.createCell(8).setCellValue(a.korContent != null ? a.korContent : "");
+                row.createCell(9).setCellValue(a.content != null ? a.content : "");
+                row.createCell(10).setCellValue(a.link != null ? a.link : "");
+                row.createCell(11).setCellValue(a.importance != null ? a.importance : "");
+            }
+
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("엑셀 생성에 실패했습니다.", e);
+        }
     }
 
     public List<ArticleDto> listScrappedArticles(Long userId) {
