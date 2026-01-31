@@ -196,7 +196,11 @@ public class ArticleService {
                 row.createCell(8).setCellValue(a.korContent != null ? a.korContent : "");
                 row.createCell(9).setCellValue(a.content != null ? a.content : "");
                 row.createCell(10).setCellValue(a.link != null ? a.link : "");
-                row.createCell(11).setCellValue(a.importance != null ? a.importance : "");
+                if (a.importance != null) {
+                    row.createCell(11).setCellValue(a.importance.doubleValue());
+                } else {
+                    row.createCell(11).setCellValue("");
+                }
             }
 
             workbook.write(out);
