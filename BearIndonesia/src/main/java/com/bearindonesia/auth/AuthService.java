@@ -20,7 +20,7 @@ public class AuthService {
         try {
             user = userRepository.createUser(req.email().trim(), req.name().trim(), req.password());
         } catch (DuplicateKeyException e) {
-            throw new UnauthorizedException("이미 사용 중인 이메일입니다.");
+            throw new DuplicateEmailException("이미 사용 중인 이메일입니다.");
         }
         String token = jwtService.createToken(user.id(), user.email(), user.name());
         return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name()));
