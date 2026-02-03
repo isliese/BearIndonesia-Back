@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/wordcloud").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/news", "/api/articles").permitAll()
                 .requestMatchers("/ingest/**").permitAll()
                 .anyRequest().authenticated()
