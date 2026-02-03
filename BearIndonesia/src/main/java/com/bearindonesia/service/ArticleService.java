@@ -3,9 +3,15 @@ package com.bearindonesia.service;
 import com.bearindonesia.dto.ArticleDto;
 import com.bearindonesia.dto.KeywordDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -162,48 +168,105 @@ public class ArticleService {
     public byte[] exportProcessedArticlesExcel(int year, int month) {
         List<ArticleDto> rows = listProcessedArticlesByMonth(year, month);
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet(String.format("%04d-%02d", year, month));
+            Sheet koreanSheet = workbook.createSheet("Korean");
+            Sheet indonesianSheet = workbook.createSheet("Indonesian");
 
-            Row header = sheet.createRow(0);
-            String[] columns = new String[] {
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
+            CellStyle wrapStyle = workbook.createCellStyle();
+            wrapStyle.setWrapText(true);
+
+            String[] koreanColumns = new String[] {
                 "날짜",
-                "언론사",
+                "출처",
                 "카테고리",
-                "키워드",
-                "헤드라인_국문",
-                "요약_국문",
-                "헤드라인_영문",
-                "요약_영문",
-                "본문_국문",
-                "본문_인도네시아어",
+                "태그",
+                "헤드라인(한글)",
+                "요약(한글)",
+                "본문(한글)",
+                "인사이트",
                 "링크",
                 "중요도"
             };
-            for (int i = 0; i < columns.length; i++) {
-                header.createCell(i).setCellValue(columns[i]);
+            Row koreanHeader = koreanSheet.createRow(0);
+            for (int i = 0; i < koreanColumns.length; i++) {
+                Cell cell = koreanHeader.createCell(i);
+                cell.setCellValue(koreanColumns[i]);
+                cell.setCellStyle(headerStyle);
             }
+            koreanSheet.setAutoFilter(new CellRangeAddress(0, 0, 0, koreanColumns.length - 1));
+            koreanSheet.createFreezePane(0, 1);
 
-            int rowIdx = 1;
+            String[] indonesianColumns = new String[] {
+                "날짜",
+                "출처",
+                "헤드라인(인도네시아어)",
+                "요약(인도네시아어)",
+                "본문(인도네시아어)",
+                "링크"
+            };
+            Row indonesianHeader = indonesianSheet.createRow(0);
+            for (int i = 0; i < indonesianColumns.length; i++) {
+                Cell cell = indonesianHeader.createCell(i);
+                cell.setCellValue(indonesianColumns[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            indonesianSheet.setAutoFilter(new CellRangeAddress(0, 0, 0, indonesianColumns.length - 1));
+            indonesianSheet.createFreezePane(0, 1);
+
+            int koreanRowIdx = 1;
+            int indonesianRowIdx = 1;
             for (ArticleDto a : rows) {
-                Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
-                row.createCell(1).setCellValue(a.source != null ? a.source : "");
-                row.createCell(2).setCellValue(a.category != null ? a.category : "");
-                row.createCell(3).setCellValue(a.tags != null
+                Row koreanRow = koreanSheet.createRow(koreanRowIdx++);
+                koreanRow.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
+                koreanRow.createCell(1).setCellValue(a.source != null ? a.source : "");
+                koreanRow.createCell(2).setCellValue(a.category != null ? a.category : "");
+                koreanRow.createCell(3).setCellValue(a.tags != null
                     ? a.tags.stream().map(t -> t.name).reduce("", (acc, name) -> acc.isEmpty() ? name : acc + ", " + name)
                     : "");
-                row.createCell(4).setCellValue(a.korTitle != null ? a.korTitle : "");
-                row.createCell(5).setCellValue(a.korSummary != null ? a.korSummary : "");
-                row.createCell(6).setCellValue(a.engTitle != null ? a.engTitle : "");
-                row.createCell(7).setCellValue(a.engSummary != null ? a.engSummary : "");
-                row.createCell(8).setCellValue(a.korContent != null ? a.korContent : "");
-                row.createCell(9).setCellValue(a.content != null ? a.content : "");
-                row.createCell(10).setCellValue(a.link != null ? a.link : "");
+                koreanRow.createCell(4).setCellValue(a.korTitle != null ? a.korTitle : "");
+                Cell korSummaryCell = koreanRow.createCell(5);
+                korSummaryCell.setCellValue(a.korSummary != null ? a.korSummary : "");
+                korSummaryCell.setCellStyle(wrapStyle);
+                Cell korContentCell = koreanRow.createCell(6);
+                korContentCell.setCellValue(a.korContent != null ? a.korContent : "");
+                korContentCell.setCellStyle(wrapStyle);
+                Cell insightCell = koreanRow.createCell(7);
+                insightCell.setCellValue(a.insight != null ? a.insight : "");
+                insightCell.setCellStyle(wrapStyle);
+                koreanRow.createCell(8).setCellValue(a.link != null ? a.link : "");
                 if (a.importance != null) {
-                    row.createCell(11).setCellValue(a.importance.doubleValue());
+                    koreanRow.createCell(9).setCellValue(a.importance.doubleValue());
                 } else {
-                    row.createCell(11).setCellValue("");
+                    koreanRow.createCell(9).setCellValue("");
                 }
+
+                Row indonesianRow = indonesianSheet.createRow(indonesianRowIdx++);
+                indonesianRow.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
+                indonesianRow.createCell(1).setCellValue(a.source != null ? a.source : "");
+                indonesianRow.createCell(2).setCellValue(a.title != null ? a.title : "");
+                Cell idSummaryCell = indonesianRow.createCell(3);
+                idSummaryCell.setCellValue(a.idSummary != null ? a.idSummary : "");
+                idSummaryCell.setCellStyle(wrapStyle);
+                Cell contentCell = indonesianRow.createCell(4);
+                contentCell.setCellValue(a.content != null ? a.content : "");
+                contentCell.setCellStyle(wrapStyle);
+                indonesianRow.createCell(5).setCellValue(a.link != null ? a.link : "");
+            }
+
+            int[] koreanWidths = new int[] { 12, 18, 16, 40, 60, 80, 120, 80, 60, 10 };
+            for (int i = 0; i < koreanWidths.length; i++) {
+                koreanSheet.setColumnWidth(i, koreanWidths[i] * 256);
+            }
+
+            int[] indonesianWidths = new int[] { 12, 18, 60, 80, 120, 60 };
+            for (int i = 0; i < indonesianWidths.length; i++) {
+                indonesianSheet.setColumnWidth(i, indonesianWidths[i] * 256);
             }
 
             workbook.write(out);
