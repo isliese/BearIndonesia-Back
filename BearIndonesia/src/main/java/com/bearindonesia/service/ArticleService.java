@@ -7,6 +7,8 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.common.usermodel.HyperlinkType;
+import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -181,6 +183,17 @@ public class ArticleService {
             CellStyle wrapStyle = workbook.createCellStyle();
             wrapStyle.setWrapText(true);
 
+            CellStyle dateStyle = workbook.createCellStyle();
+            dateStyle.setDataFormat(workbook.createDataFormat().getFormat("yyyy-mm-dd"));
+
+            CellStyle linkStyle = workbook.createCellStyle();
+            Font linkFont = workbook.createFont();
+            linkFont.setUnderline(Font.U_SINGLE);
+            linkFont.setColor(IndexedColors.BLUE.getIndex());
+            linkStyle.setFont(linkFont);
+
+            CreationHelper creationHelper = workbook.getCreationHelper();
+
             String[] koreanColumns = new String[] {
                 "날짜",
                 "출처",
@@ -223,7 +236,14 @@ public class ArticleService {
             int indonesianRowIdx = 1;
             for (ArticleDto a : rows) {
                 Row koreanRow = koreanSheet.createRow(koreanRowIdx++);
-                koreanRow.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
+                koreanRow.setHeightInPoints(60);
+                Cell koreanDateCell = koreanRow.createCell(0);
+                if (a.date != null) {
+                    koreanDateCell.setCellValue(java.sql.Date.valueOf(a.date));
+                    koreanDateCell.setCellStyle(dateStyle);
+                } else {
+                    koreanDateCell.setCellValue("");
+                }
                 koreanRow.createCell(1).setCellValue(a.source != null ? a.source : "");
                 koreanRow.createCell(2).setCellValue(a.category != null ? a.category : "");
                 koreanRow.createCell(3).setCellValue(a.tags != null
@@ -239,7 +259,16 @@ public class ArticleService {
                 Cell insightCell = koreanRow.createCell(7);
                 insightCell.setCellValue(a.insight != null ? a.insight : "");
                 insightCell.setCellStyle(wrapStyle);
-                koreanRow.createCell(8).setCellValue(a.link != null ? a.link : "");
+                Cell koreanLinkCell = koreanRow.createCell(8);
+                if (a.link != null && !a.link.isBlank()) {
+                    koreanLinkCell.setCellValue(a.link);
+                    koreanLinkCell.setCellStyle(linkStyle);
+                    var link = creationHelper.createHyperlink(HyperlinkType.URL);
+                    link.setAddress(a.link);
+                    koreanLinkCell.setHyperlink(link);
+                } else {
+                    koreanLinkCell.setCellValue("");
+                }
                 if (a.importance != null) {
                     koreanRow.createCell(9).setCellValue(a.importance.doubleValue());
                 } else {
@@ -247,7 +276,14 @@ public class ArticleService {
                 }
 
                 Row indonesianRow = indonesianSheet.createRow(indonesianRowIdx++);
-                indonesianRow.createCell(0).setCellValue(a.date != null ? a.date.toString() : "");
+                indonesianRow.setHeightInPoints(60);
+                Cell indonesianDateCell = indonesianRow.createCell(0);
+                if (a.date != null) {
+                    indonesianDateCell.setCellValue(java.sql.Date.valueOf(a.date));
+                    indonesianDateCell.setCellStyle(dateStyle);
+                } else {
+                    indonesianDateCell.setCellValue("");
+                }
                 indonesianRow.createCell(1).setCellValue(a.source != null ? a.source : "");
                 indonesianRow.createCell(2).setCellValue(a.title != null ? a.title : "");
                 Cell idSummaryCell = indonesianRow.createCell(3);
@@ -256,7 +292,16 @@ public class ArticleService {
                 Cell contentCell = indonesianRow.createCell(4);
                 contentCell.setCellValue(a.content != null ? a.content : "");
                 contentCell.setCellStyle(wrapStyle);
-                indonesianRow.createCell(5).setCellValue(a.link != null ? a.link : "");
+                Cell indonesianLinkCell = indonesianRow.createCell(5);
+                if (a.link != null && !a.link.isBlank()) {
+                    indonesianLinkCell.setCellValue(a.link);
+                    indonesianLinkCell.setCellStyle(linkStyle);
+                    var link = creationHelper.createHyperlink(HyperlinkType.URL);
+                    link.setAddress(a.link);
+                    indonesianLinkCell.setHyperlink(link);
+                } else {
+                    indonesianLinkCell.setCellValue("");
+                }
             }
 
             int[] koreanWidths = new int[] { 12, 18, 16, 40, 60, 80, 120, 80, 60, 10 };
