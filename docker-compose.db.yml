@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bear-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bear}
+      POSTGRES_USER: ${POSTGRES_USER:-bear}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "55432:5432"
+    volumes:
+      - bear_pgdata:/var/lib/postgresql/data
+
+volumes:
+  bear_pgdata:
