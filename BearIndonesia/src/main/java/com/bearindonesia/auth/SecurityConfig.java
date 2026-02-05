@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/wordcloud").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/news", "/api/articles", "/api/newsletter").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/articles/**", "/api/newsletter/**").permitAll()
                 .requestMatchers("/ingest/**").permitAll()
                 .anyRequest().authenticated()
         );
