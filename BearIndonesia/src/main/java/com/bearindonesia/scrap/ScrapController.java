@@ -6,7 +6,9 @@ import com.bearindonesia.dto.ArticleDto;
 import com.bearindonesia.service.ArticleService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/scrap")
@@ -21,9 +23,16 @@ public class ScrapController {
     }
 
     @PostMapping("/{rawNewsId}")
-    public ResponseEntity<?> add(@PathVariable Long rawNewsId) {
+    public ResponseEntity<?> add(
+            @PathVariable Long rawNewsId,
+            @RequestBody(required = false) ScrapCreateRequest body
+    ) {
         AuthUser user = SecurityUtils.requireUser();
-        userScrapRepository.addScrap(user.id(), rawNewsId);
+        String comment = body == null ? null : body.comment;
+        if (comment != null && comment.length() > 300) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "comment must be <= 300 characters");
+        }
+        userScrapRepository.addScrap(user.id(), rawNewsId, comment);
         return ResponseEntity.ok().build();
     }
 

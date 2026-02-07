@@ -18,6 +18,7 @@ public class ArticleDto {
     public LocalDate date;
     public String source;
     public String img;
+    public String comment;
 
     public String category;
     public String engCategory;
