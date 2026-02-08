@@ -326,6 +326,7 @@ public class ArticleService {
             SELECT
                 p.id,
                 p.raw_news_id,
+                s.comment,
                 r.title,
                 r.link,
                 r.content,
@@ -351,7 +352,11 @@ public class ArticleService {
               AND p.is_pharma_related IS TRUE
             ORDER BY s.created_at DESC, p.id DESC
             """;
-        return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs), userId);
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            ArticleDto dto = toDto(rs);
+            dto.comment = rs.getString("comment");
+            return dto;
+        }, userId);
     }
 
     private ArticleDto toDto(ResultSet rs) throws SQLException {

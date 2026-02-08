@@ -13,13 +13,17 @@ public class UserScrapRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void addScrap(Long userId, Long rawNewsId) {
+    public void addScrap(Long userId, Long rawNewsId, String comment) {
         String sql = """
-            INSERT INTO user_scrap (user_id, raw_news_id)
-            VALUES (?, ?)
-            ON CONFLICT (user_id, raw_news_id) DO NOTHING
+            INSERT INTO user_scrap (user_id, raw_news_id, comment)
+            VALUES (?, ?, ?)
+            ON CONFLICT (user_id, raw_news_id) DO UPDATE
+            SET comment = CASE
+                WHEN EXCLUDED.comment IS NULL THEN user_scrap.comment
+                ELSE EXCLUDED.comment
+            END
             """;
-        jdbcTemplate.update(sql, userId, rawNewsId);
+        jdbcTemplate.update(sql, userId, rawNewsId, comment);
     }
 
     public void removeScrap(Long userId, Long rawNewsId) {

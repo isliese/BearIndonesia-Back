@@ -17,4 +17,5 @@ build/
 Thumbs.db
 
 # Env (local)
+.env
 BearIndonesia/.env
