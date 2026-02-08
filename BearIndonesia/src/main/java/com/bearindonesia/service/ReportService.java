@@ -1,0 +1,728 @@
+package com.bearindonesia.service;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.sql.Date;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Service
+public class ReportService {
+
+    private final JdbcTemplate jdbcTemplate;
+    private static final int CLUSTER_LIMIT = 50;
+    private static final double CLUSTER_SIM_THRESHOLD = 0.25;
+    private static final int PIN_MIN_COUNT = 3;
+    private static final double PIN_MULTIPLIER = 2.0;
+    private static final int PIN_LOOKBACK_DAYS = 7;
+    private static final Map<String, Double> SOURCE_WEIGHTS = buildSourceWeights();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final int KEYWORD_RANK_LIMIT = 20;
+    private static final int AUTO_COMPETITOR_LIMIT = 6;
+    private static final int WEEKLY_ISSUE_DAYS = 7;
+    private static final int MONTHLY_ISSUE_DAYS = 30;
+    private static final int TREND_KEYWORD_LIMIT = 6;
+
+    public ReportService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public CompetitorReportResponse buildCompetitorReport(LocalDate start, LocalDate end, List<String> keywords, int topLimit) {
+        CompetitorReportResponse resp = new CompetitorReportResponse();
+        DateRange range = resolveDateRange(start, end);
+        resp.start = range.start;
+        resp.end = range.end;
+        resp.keywords = keywords;
+        resp.totals = new ArrayList<>();
+        resp.daily = new ArrayList<>();
+        resp.sources = new ArrayList<>();
+        resp.topArticles = new ArrayList<>();
+        resp.clusters = new ArrayList<>();
+        resp.insights = new ArrayList<>();
+        resp.pins = new ArrayList<>();
+        resp.impacts = new ArrayList<>();
+        resp.keywordRanks = new ArrayList<>();
+        resp.autoCompetitors = new ArrayList<>();
+        resp.weeklyIssues = new ArrayList<>();
+        resp.monthlyIssues = new ArrayList<>();
+        resp.keywordTrends = new ArrayList<>();
+
+        resp.keywordRanks = buildKeywordRanks(range.start, range.end);
+        resp.autoCompetitors = resp.keywordRanks.stream()
+            .map(r -> r.keyword)
+            .limit(AUTO_COMPETITOR_LIMIT)
+            .collect(Collectors.toList());
+        resp.weeklyIssues = buildKeywordRanks(range.end.minusDays(WEEKLY_ISSUE_DAYS - 1), range.end);
+        resp.monthlyIssues = buildKeywordRanks(range.end.minusDays(MONTHLY_ISSUE_DAYS - 1), range.end);
+        resp.keywordTrends = buildKeywordTrends(range.start, range.end);
+
+        if (keywords == null || keywords.isEmpty()) {
+            return resp;
+        }
+
+        long days = ChronoUnit.DAYS.between(range.start, range.end) + 1;
+        LocalDate prevEnd = range.start.minusDays(1);
+        LocalDate prevStart = range.start.minusDays(days);
+
+        String baseWhere = "p.is_pharma_related IS TRUE AND r.published_date BETWEEN ? AND ? AND (" +
+            "LOWER(COALESCE(p.kor_title, r.title)) LIKE LOWER(CONCAT('%', ?, '%')) OR " +
+            "LOWER(COALESCE(p.kor_summary, p.kor_content, r.content)) LIKE LOWER(CONCAT('%', ?, '%'))" +
+            ")";
+
+        for (String keyword : keywords) {
+            String kw = keyword == null ? "" : keyword.trim();
+            if (kw.isEmpty()) {
+                continue;
+            }
+
+            Integer total = countKeyword(baseWhere, range.start, range.end, kw);
+            Integer prevTotal = countKeyword(baseWhere, prevStart, prevEnd, kw);
+            CompetitorTotalRow totalRow = new CompetitorTotalRow();
+            totalRow.keyword = kw;
+            totalRow.count = total == null ? 0 : total;
+            totalRow.previousCount = prevTotal == null ? 0 : prevTotal;
+            totalRow.delta = totalRow.count - totalRow.previousCount;
+            if (totalRow.previousCount > 0) {
+                totalRow.changeRate = (double) totalRow.delta / totalRow.previousCount;
+            } else {
+                totalRow.changeRate = null;
+            }
+            resp.totals.add(totalRow);
+
+            List<CompetitorDailyRow> dailyRows = jdbcTemplate.query(
+                "SELECT r.published_date, COUNT(*) AS cnt " +
+                    "FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                    "WHERE " + baseWhere + " " +
+                    "GROUP BY r.published_date ORDER BY r.published_date",
+                (rs, rowNum) -> {
+                    CompetitorDailyRow row = new CompetitorDailyRow();
+                    row.keyword = kw;
+                    row.date = rs.getDate("published_date").toLocalDate();
+                    row.count = rs.getInt("cnt");
+                    return row;
+                },
+                Date.valueOf(range.start),
+                Date.valueOf(range.end),
+                kw,
+                kw
+            );
+            resp.daily.addAll(dailyRows);
+
+            List<CompetitorSourceRow> sourceRows = jdbcTemplate.query(
+                "SELECT COALESCE(r.source, 'Unknown') AS source, COUNT(*) AS cnt " +
+                    "FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                    "WHERE " + baseWhere + " " +
+                    "GROUP BY COALESCE(r.source, 'Unknown') ORDER BY cnt DESC",
+                (rs, rowNum) -> {
+                    CompetitorSourceRow row = new CompetitorSourceRow();
+                    row.keyword = kw;
+                    row.source = rs.getString("source");
+                    row.count = rs.getInt("cnt");
+                    return row;
+                },
+                Date.valueOf(range.start),
+                Date.valueOf(range.end),
+                kw,
+                kw
+            );
+            resp.sources.addAll(sourceRows);
+
+            List<CompetitorArticleRow> articleRows = jdbcTemplate.query(
+                "SELECT p.id, r.title, r.link, r.published_date, r.source, r.img, p.kor_title, p.kor_summary, p.id_summary, p.importance " +
+                    "FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                    "WHERE " + baseWhere + " " +
+                    "ORDER BY p.importance DESC NULLS LAST, r.published_date DESC NULLS LAST, p.id DESC " +
+                    "LIMIT ?",
+                (rs, rowNum) -> {
+                    CompetitorArticleRow row = new CompetitorArticleRow();
+                    row.keyword = kw;
+                    row.articleId = rs.getLong("id");
+                    row.title = rs.getString("title");
+                    row.korTitle = rs.getString("kor_title");
+                    row.korSummary = rs.getString("kor_summary");
+                    row.idSummary = rs.getString("id_summary");
+                    row.link = rs.getString("link");
+                    row.source = rs.getString("source");
+                    row.img = rs.getString("img");
+                    Date d = rs.getDate("published_date");
+                    row.date = d != null ? d.toLocalDate() : null;
+                    Object impObj = rs.getObject("importance");
+                    row.importance = impObj == null ? null : ((Number) impObj).intValue();
+                    return row;
+                },
+                Date.valueOf(range.start),
+                Date.valueOf(range.end),
+                kw,
+                kw,
+                topLimit
+            );
+            resp.topArticles.addAll(articleRows);
+
+            List<ClusterArticle> clusterArticles = jdbcTemplate.query(
+                "SELECT p.id, r.title, r.link, r.published_date, r.source, r.img, p.kor_title, p.kor_summary, p.id_summary, p.importance " +
+                    "FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                    "WHERE " + baseWhere + " " +
+                    "ORDER BY p.importance DESC NULLS LAST, r.published_date DESC NULLS LAST, p.id DESC " +
+                    "LIMIT ?",
+                (rs, rowNum) -> {
+                    ClusterArticle row = new ClusterArticle();
+                    row.keyword = kw;
+                    row.articleId = rs.getLong("id");
+                    row.title = rs.getString("title");
+                    row.korTitle = rs.getString("kor_title");
+                    row.korSummary = rs.getString("kor_summary");
+                    row.idSummary = rs.getString("id_summary");
+                    row.link = rs.getString("link");
+                    row.source = rs.getString("source");
+                    row.img = rs.getString("img");
+                    Date d = rs.getDate("published_date");
+                    row.date = d != null ? d.toLocalDate() : null;
+                    Object impObj = rs.getObject("importance");
+                    row.importance = impObj == null ? null : ((Number) impObj).intValue();
+                    return row;
+                },
+                Date.valueOf(range.start),
+                Date.valueOf(range.end),
+                kw,
+                kw,
+                CLUSTER_LIMIT
+            );
+
+            List<Cluster> clusters = clusterBySimilarity(clusterArticles);
+            int clusterIndex = 1;
+            for (Cluster c : clusters) {
+                CompetitorClusterRow row = new CompetitorClusterRow();
+                row.keyword = kw;
+                row.clusterId = clusterIndex++;
+                row.title = c.title;
+                row.count = c.articles.size();
+                row.topTitles = c.articles.stream()
+                    .map(ClusterArticle::displayTitle)
+                    .filter(s -> s != null && !s.isBlank())
+                    .distinct()
+                    .limit(3)
+                    .collect(Collectors.toList());
+                row.sampleArticles = c.articles.stream()
+                    .sorted(Comparator.comparing(ClusterArticle::importanceSafe).reversed())
+                    .limit(5)
+                    .map(ClusterArticle::toArticleRef)
+                    .collect(Collectors.toList());
+                resp.clusters.add(row);
+            }
+
+            CompetitorInsightRow insight = new CompetitorInsightRow();
+            insight.keyword = kw;
+            insight.summary = buildInsightSummary(clusters);
+            resp.insights.add(insight);
+
+            CompetitorImpactRow impact = new CompetitorImpactRow();
+            impact.keyword = kw;
+            impact.score = computeImpactScore(clusterArticles);
+            impact.articleCount = clusterArticles.size();
+            resp.impacts.add(impact);
+        }
+
+        resp.pins = buildPins(resp.daily);
+        return resp;
+    }
+
+    public static class CompetitorReportResponse {
+        public LocalDate start;
+        public LocalDate end;
+        public List<String> keywords;
+        public List<CompetitorTotalRow> totals;
+        public List<CompetitorDailyRow> daily;
+        public List<CompetitorSourceRow> sources;
+        public List<CompetitorArticleRow> topArticles;
+        public List<CompetitorClusterRow> clusters;
+        public List<CompetitorInsightRow> insights;
+        public List<CompetitorPinRow> pins;
+        public List<CompetitorImpactRow> impacts;
+        public List<KeywordRankRow> keywordRanks;
+        public List<String> autoCompetitors;
+        public List<KeywordRankRow> weeklyIssues;
+        public List<KeywordRankRow> monthlyIssues;
+        public List<KeywordTrendRow> keywordTrends;
+    }
+
+    public static class CompetitorTotalRow {
+        public String keyword;
+        public int count;
+        public int previousCount;
+        public int delta;
+        public Double changeRate;
+    }
+
+    public static class CompetitorDailyRow {
+        public String keyword;
+        public LocalDate date;
+        public int count;
+    }
+
+    public static class CompetitorSourceRow {
+        public String keyword;
+        public String source;
+        public int count;
+    }
+
+    public static class CompetitorArticleRow {
+        public String keyword;
+        public Long articleId;
+        public String title;
+        public String korTitle;
+        public String korSummary;
+        public String idSummary;
+        public String link;
+        public String source;
+        public String img;
+        public LocalDate date;
+        public Integer importance;
+    }
+
+    public static class CompetitorClusterRow {
+        public String keyword;
+        public int clusterId;
+        public String title;
+        public int count;
+        public List<String> topTitles;
+        public List<CompetitorArticleRef> sampleArticles;
+    }
+
+    public static class CompetitorArticleRef {
+        public Long articleId;
+        public String title;
+        public String link;
+        public String source;
+        public LocalDate date;
+        public Integer importance;
+    }
+
+    public static class CompetitorInsightRow {
+        public String keyword;
+        public String summary;
+    }
+
+    public static class CompetitorPinRow {
+        public String keyword;
+        public LocalDate date;
+        public int count;
+        public double baseline;
+        public double ratio;
+    }
+
+    public static class CompetitorImpactRow {
+        public String keyword;
+        public double score;
+        public int articleCount;
+    }
+
+    public static class KeywordRankRow {
+        public String keyword;
+        public int count;
+    }
+
+    public static class KeywordTrendRow {
+        public String keyword;
+        public List<TrendPoint> points;
+    }
+
+    public static class TrendPoint {
+        public LocalDate date;
+        public int count;
+    }
+
+    private static class DateRange {
+        LocalDate start;
+        LocalDate end;
+    }
+
+    private Integer countKeyword(String baseWhere, LocalDate start, LocalDate end, String kw) {
+        return jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id WHERE " + baseWhere,
+            Integer.class,
+            Date.valueOf(start),
+            Date.valueOf(end),
+            kw,
+            kw
+        );
+    }
+
+    private DateRange resolveDateRange(LocalDate start, LocalDate end) {
+        DateRange range = new DateRange();
+        if (start != null && end != null) {
+            range.start = start;
+            range.end = end;
+            return range;
+        }
+        List<LocalDate> row = jdbcTemplate.query(
+            "SELECT MIN(published_date) AS min_date, MAX(published_date) AS max_date FROM raw_news",
+            (rs, rn) -> {
+                Date min = rs.getDate("min_date");
+                Date max = rs.getDate("max_date");
+                List<LocalDate> out = new ArrayList<>();
+                out.add(min != null ? min.toLocalDate() : LocalDate.now().minusDays(30));
+                out.add(max != null ? max.toLocalDate() : LocalDate.now());
+                return out;
+            }
+        ).stream().findFirst().orElse(List.of(LocalDate.now().minusDays(30), LocalDate.now()));
+        range.start = start != null ? start : row.get(0);
+        range.end = end != null ? end : row.get(1);
+        return range;
+    }
+
+    private List<KeywordRankRow> buildKeywordRanks(LocalDate start, LocalDate end) {
+        List<Object> tagRows = jdbcTemplate.query(
+            "SELECT p.tags FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                "WHERE p.is_pharma_related IS TRUE AND r.published_date BETWEEN ? AND ? AND p.tags IS NOT NULL",
+            (rs, rowNum) -> rs.getObject("tags"),
+            Date.valueOf(start),
+            Date.valueOf(end)
+        );
+
+        Map<String, Integer> counts = new HashMap<>();
+        for (Object raw : tagRows) {
+            List<String> tags = parseTags(raw);
+            Set<String> unique = new HashSet<>(tags);
+            for (String tag : unique) {
+                if (tag == null || tag.isBlank()) continue;
+                counts.put(tag, counts.getOrDefault(tag, 0) + 1);
+            }
+        }
+
+        return counts.entrySet().stream()
+            .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+            .limit(KEYWORD_RANK_LIMIT)
+            .map(e -> {
+                KeywordRankRow row = new KeywordRankRow();
+                row.keyword = e.getKey();
+                row.count = e.getValue();
+                return row;
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<KeywordTrendRow> buildKeywordTrends(LocalDate start, LocalDate end) {
+        List<KeywordRankRow> ranks = buildKeywordRanks(start, end);
+        List<String> topKeywords = ranks.stream()
+            .map(r -> r.keyword)
+            .limit(TREND_KEYWORD_LIMIT)
+            .collect(Collectors.toList());
+        if (topKeywords.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TagDateRow> rows = jdbcTemplate.query(
+            "SELECT r.published_date, p.tags FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                "WHERE p.is_pharma_related IS TRUE AND r.published_date BETWEEN ? AND ? AND p.tags IS NOT NULL",
+            (rs, rn) -> {
+                TagDateRow row = new TagDateRow();
+                Date d = rs.getDate("published_date");
+                row.date = d != null ? d.toLocalDate() : null;
+                row.tags = rs.getObject("tags");
+                return row;
+            },
+            Date.valueOf(start),
+            Date.valueOf(end)
+        );
+
+        Map<String, Map<LocalDate, Integer>> counts = new HashMap<>();
+        for (String kw : topKeywords) {
+            counts.put(kw, new HashMap<>());
+        }
+
+        for (TagDateRow row : rows) {
+            if (row.date == null) continue;
+            List<String> tags = parseTags(row.tags);
+            Set<String> unique = new HashSet<>(tags);
+            for (String kw : topKeywords) {
+                if (unique.contains(kw)) {
+                    Map<LocalDate, Integer> byDate = counts.get(kw);
+                    byDate.put(row.date, byDate.getOrDefault(row.date, 0) + 1);
+                }
+            }
+        }
+
+        List<KeywordTrendRow> out = new ArrayList<>();
+        for (String kw : topKeywords) {
+            KeywordTrendRow row = new KeywordTrendRow();
+            row.keyword = kw;
+            row.points = new ArrayList<>();
+            LocalDate cursor = start;
+            while (!cursor.isAfter(end)) {
+                TrendPoint p = new TrendPoint();
+                p.date = cursor;
+                p.count = counts.getOrDefault(kw, Collections.emptyMap()).getOrDefault(cursor, 0);
+                row.points.add(p);
+                cursor = cursor.plusDays(1);
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    private static class TagDateRow {
+        LocalDate date;
+        Object tags;
+    }
+
+    private List<String> parseTags(Object raw) {
+        if (raw == null) return Collections.emptyList();
+        if (raw instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof String s && !s.isBlank()) {
+                    out.add(s.trim());
+                } else if (item instanceof Map<?, ?> map) {
+                    Object name = map.get("name");
+                    if (name instanceof String s && !s.isBlank()) {
+                        out.add(s.trim());
+                    }
+                }
+            }
+            return out;
+        }
+        String s = raw.toString().trim();
+        if (s.isEmpty()) return Collections.emptyList();
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(s);
+            List<String> out = new ArrayList<>();
+            if (node.isArray()) {
+                for (JsonNode n : node) {
+                    if (n.isTextual()) {
+                        out.add(n.asText().trim());
+                    } else if (n.isObject() && n.has("name")) {
+                        out.add(n.get("name").asText().trim());
+                    }
+                }
+            } else if (node.isObject() && node.has("name")) {
+                out.add(node.get("name").asText().trim());
+            }
+            return out;
+        } catch (Exception ignored) {
+            // Fall back to comma-separated values
+        }
+        String[] parts = s.split(",");
+        List<String> out = new ArrayList<>();
+        for (String part : parts) {
+            String t = part.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    private static Map<String, Double> buildSourceWeights() {
+        Map<String, Double> weights = new HashMap<>();
+        for (String s : List.of(
+            "Kompas", "Tempo", "CNBC Indonesia", "Detik", "CNN Indonesia",
+            "Kontan", "Bisnis", "IDX", "SindoNews", "Viva", "BPOM", "MOH"
+        )) {
+            weights.put(s.toLowerCase(Locale.ROOT), 1.2);
+        }
+        return weights;
+    }
+
+    private static double computeImpactScore(List<ClusterArticle> articles) {
+        double total = 0.0;
+        for (ClusterArticle a : articles) {
+            double sourceWeight = 1.0;
+            if (a.source != null) {
+                sourceWeight = SOURCE_WEIGHTS.getOrDefault(a.source.toLowerCase(Locale.ROOT), 1.0);
+            }
+            double importanceWeight = 0.0;
+            if (a.importance != null) {
+                importanceWeight = Math.min(1.0, a.importance / 100.0);
+            }
+            double base = 1.0 + importanceWeight;
+            total += base * sourceWeight;
+        }
+        return Math.round(total * 10.0) / 10.0;
+    }
+
+    private static String buildInsightSummary(List<Cluster> clusters) {
+        if (clusters == null || clusters.isEmpty()) {
+            return "";
+        }
+        List<String> titles = clusters.stream()
+            .sorted(Comparator.comparingInt((Cluster c) -> c.articles.size()).reversed())
+            .map(c -> c.title)
+            .filter(s -> s != null && !s.isBlank())
+            .limit(2)
+            .collect(Collectors.toList());
+        if (titles.isEmpty()) {
+            return "";
+        }
+        return "주요 이슈: " + String.join(", ", titles);
+    }
+
+    private static List<CompetitorPinRow> buildPins(List<CompetitorDailyRow> dailyRows) {
+        if (dailyRows == null || dailyRows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, List<CompetitorDailyRow>> byKeyword = new HashMap<>();
+        for (CompetitorDailyRow row : dailyRows) {
+            byKeyword.computeIfAbsent(row.keyword, k -> new ArrayList<>()).add(row);
+        }
+        List<CompetitorPinRow> pins = new ArrayList<>();
+        for (Map.Entry<String, List<CompetitorDailyRow>> entry : byKeyword.entrySet()) {
+            List<CompetitorDailyRow> rows = entry.getValue();
+            rows.sort(Comparator.comparing(r -> r.date));
+            ArrayDeque<Integer> window = new ArrayDeque<>();
+            double sum = 0.0;
+            for (CompetitorDailyRow row : rows) {
+                double baseline = window.isEmpty() ? 0.0 : sum / window.size();
+                if (baseline > 0 && row.count >= Math.max(PIN_MIN_COUNT, baseline * PIN_MULTIPLIER)) {
+                    CompetitorPinRow pin = new CompetitorPinRow();
+                    pin.keyword = row.keyword;
+                    pin.date = row.date;
+                    pin.count = row.count;
+                    pin.baseline = Math.round(baseline * 10.0) / 10.0;
+                    pin.ratio = Math.round((row.count / baseline) * 10.0) / 10.0;
+                    pins.add(pin);
+                }
+                window.addLast(row.count);
+                sum += row.count;
+                if (window.size() > PIN_LOOKBACK_DAYS) {
+                    sum -= window.removeFirst();
+                }
+            }
+        }
+        return pins;
+    }
+
+    private static List<Cluster> clusterBySimilarity(List<ClusterArticle> articles) {
+        if (articles == null || articles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Cluster> clusters = new ArrayList<>();
+        for (ClusterArticle article : articles) {
+            String text = article.titleForSimilarity();
+            Set<String> tokens = tokenize(text);
+            Cluster bestCluster = null;
+            double bestScore = 0.0;
+            for (Cluster cluster : clusters) {
+                double sim = jaccard(tokens, cluster.tokens);
+                if (sim > bestScore) {
+                    bestScore = sim;
+                    bestCluster = cluster;
+                }
+            }
+            if (bestCluster != null && bestScore >= CLUSTER_SIM_THRESHOLD) {
+                bestCluster.articles.add(article);
+                bestCluster.tokens = union(bestCluster.tokens, tokens);
+            } else {
+                Cluster cluster = new Cluster();
+                cluster.title = article.displayTitle();
+                cluster.tokens = tokens;
+                cluster.articles = new ArrayList<>();
+                cluster.articles.add(article);
+                clusters.add(cluster);
+            }
+        }
+        clusters.sort(Comparator.comparingInt((Cluster c) -> c.articles.size()).reversed());
+        return clusters;
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+        Set<String> out = new HashSet<>(a);
+        out.addAll(b);
+        return out;
+    }
+
+    private static Set<String> tokenize(String text) {
+        if (text == null) {
+            return Collections.emptySet();
+        }
+        String normalized = text.toLowerCase(Locale.ROOT)
+            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
+            .trim();
+        if (normalized.isEmpty()) {
+            return Collections.emptySet();
+        }
+        String[] parts = normalized.split("\\s+");
+        Set<String> tokens = new HashSet<>();
+        for (String p : parts) {
+            if (p.length() < 2) {
+                continue;
+            }
+            tokens.add(p);
+        }
+        return tokens;
+    }
+
+    private static double jaccard(Set<String> a, Set<String> b) {
+        if (a.isEmpty() || b.isEmpty()) {
+            return 0.0;
+        }
+        int inter = 0;
+        for (String token : a) {
+            if (b.contains(token)) inter++;
+        }
+        int union = a.size() + b.size() - inter;
+        return union == 0 ? 0.0 : (double) inter / union;
+    }
+
+    private static class Cluster {
+        String title;
+        Set<String> tokens;
+        List<ClusterArticle> articles;
+    }
+
+    private static class ClusterArticle {
+        String keyword;
+        Long articleId;
+        String title;
+        String korTitle;
+        String korSummary;
+        String idSummary;
+        String link;
+        String source;
+        String img;
+        LocalDate date;
+        Integer importance;
+
+        String displayTitle() {
+            if (korTitle != null && !korTitle.isBlank()) {
+                return korTitle;
+            }
+            return title;
+        }
+
+        String titleForSimilarity() {
+            String base = displayTitle();
+            String summary = korSummary != null && !korSummary.isBlank() ? korSummary : idSummary;
+            if (summary != null && !summary.isBlank()) {
+                return base + " " + summary;
+            }
+            return base;
+        }
+
+        int importanceSafe() {
+            return importance == null ? 0 : importance;
+        }
+
+        CompetitorArticleRef toArticleRef() {
+            CompetitorArticleRef ref = new CompetitorArticleRef();
+            ref.articleId = articleId;
+            ref.title = displayTitle();
+            ref.link = link;
+            ref.source = source;
+            ref.date = date;
+            ref.importance = importance;
+            return ref;
+        }
+    }
+}

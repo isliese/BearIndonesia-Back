@@ -30,52 +30,14 @@ public class SecurityConfig {
      *    - 여기서 permitAll로 끝내면 JwtAuthFilter가 끼어들 여지가 없음
      */
     @Bean
-    @Order(1)
-    public SecurityFilterChain publicApiChain(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher(
-                "/auth/**",
-                "/ingest/**",
-                "/api/news/**",
-                "/api/articles/**",
-                "/api/newsletter/**",
-                "/api/search",
-                "/api/wordcloud"
-            )
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/auth/**").permitAll()
-                .requestMatchers("/ingest/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/articles/**", "/api/newsletter/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/wordcloud").permitAll()
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable());
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
+        http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
-            );
-
-        return http.build();
-    }
-
-    /**
-     * 2) 나머지 전부 보호 체인 (여기서만 JWT 필터 적용)
-     */
-    @Bean
-    @Order(2)
-    public SecurityFilterChain securedChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
-                .requestMatchers("/error").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
+        );
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
