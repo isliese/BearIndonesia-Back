@@ -29,14 +29,7 @@ public class SecurityConfig {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/**").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/wordcloud").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/articles/**", "/api/newsletter/**").permitAll()
-                // .requestMatchers(HttpMethod.GET, "/api/news", "/api/articles", "/api/newsletter").permitAll()
-                .requestMatchers("/ingest/**").permitAll()
-                .anyRequest().authenticated()
+                .anyRequest().permitAll()
         );
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
