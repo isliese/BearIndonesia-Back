@@ -52,9 +52,26 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/articles/**", "/api/newsletter/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/wordcloud").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/articles/**", "/api/newsletter/**").permitAll()
-                // .requestMatchers(HttpMethod.GET, "/api/news", "/api/articles", "/api/newsletter").permitAll()
-                .requestMatchers("/ingest/**").permitAll()
+                .anyRequest().permitAll()
+            );
+
+        return http.build();
+    }
+
+    /**
+     * 2) 나머지 전부 보호 체인 (여기서만 JWT 필터 적용)
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain securedChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
+                .requestMatchers("/error").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
