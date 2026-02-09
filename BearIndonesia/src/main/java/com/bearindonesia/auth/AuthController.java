@@ -29,7 +29,7 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me() {
         AuthUser user = SecurityUtils.requireUser();
-        return ResponseEntity.ok(new UserResponse(user.id(), user.email(), user.name()));
+        return ResponseEntity.ok(new UserResponse(user.id(), user.email(), user.name(), user.role()));
     }
 
     @PostMapping("/change-password")

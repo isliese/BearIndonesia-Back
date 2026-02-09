@@ -2,6 +2,7 @@ package com.bearindonesia.api;
 
 import com.bearindonesia.auth.UnauthorizedException;
 import com.bearindonesia.auth.DuplicateEmailException;
+import com.bearindonesia.auth.ForbiddenException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +36,20 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(
                         HttpStatus.CONFLICT,
+                        ex.getMessage(),
+                        request.getRequestURI()
+                ));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(
+            ForbiddenException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(
+                        HttpStatus.FORBIDDEN,
                         ex.getMessage(),
                         request.getRequestURI()
                 ));
