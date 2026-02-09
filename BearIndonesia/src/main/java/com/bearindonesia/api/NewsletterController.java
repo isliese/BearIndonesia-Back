@@ -1,7 +1,10 @@
 package com.bearindonesia.api;
 
+import com.bearindonesia.dto.NewsletterCoreNewsItemDto;
 import com.bearindonesia.newsletter.NewsletterService;
+import com.bearindonesia.service.ArticleService;
 import java.time.YearMonth;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,9 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class NewsletterController {
 
     private final NewsletterService newsletterService;
+    private final ArticleService articleService;
 
-    public NewsletterController(NewsletterService newsletterService) {
+    public NewsletterController(NewsletterService newsletterService, ArticleService articleService) {
         this.newsletterService = newsletterService;
+        this.articleService = articleService;
     }
 
     @GetMapping("/newsletter")
@@ -33,6 +38,19 @@ public class NewsletterController {
         return ResponseEntity.ok()
                 .contentType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM)
                 .body(response.getBody());
+    }
+
+    @GetMapping("/newsletter/core-news")
+    public List<NewsletterCoreNewsItemDto> getCoreNews(
+            @RequestParam String year,
+            @RequestParam String month,
+            @RequestParam(required = false, defaultValue = "10") int limit
+    ) {
+        int yearValue = parseYear(year);
+        int monthValue = parseMonth(month);
+        YearMonth.of(yearValue, monthValue);
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        return articleService.listTopCoreNewsByMonth(yearValue, monthValue, safeLimit);
     }
 
     private int parseYear(String year) {
