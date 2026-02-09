@@ -36,6 +36,10 @@ public class ReportService {
     private static final int WEEKLY_ISSUE_DAYS = 7;
     private static final int MONTHLY_ISSUE_DAYS = 30;
     private static final int TREND_KEYWORD_LIMIT = 6;
+    private static final int ISSUE_TITLE_LIMIT = 8;
+    private static final int ISSUE_TITLE_FETCH_MULTIPLIER = 3;
+    private static final Set<String> KEYWORD_STOPWORDS = buildKeywordStopwords();
+    private static final List<String> KEYWORD_ALLOWLIST = buildKeywordAllowlist();
 
     public ReportService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -55,10 +59,14 @@ public class ReportService {
         resp.insights = new ArrayList<>();
         resp.pins = new ArrayList<>();
         resp.impacts = new ArrayList<>();
+        resp.mentionedKeywords = new ArrayList<>();
         resp.keywordRanks = new ArrayList<>();
         resp.autoCompetitors = new ArrayList<>();
         resp.weeklyIssues = new ArrayList<>();
         resp.monthlyIssues = new ArrayList<>();
+        resp.weeklyIssueTitles = new ArrayList<>();
+        resp.monthlyIssueTitles = new ArrayList<>();
+        resp.rangeIssueTitles = new ArrayList<>();
         resp.keywordTrends = new ArrayList<>();
 
         resp.keywordRanks = buildKeywordRanks(range.start, range.end);
@@ -68,6 +76,9 @@ public class ReportService {
             .collect(Collectors.toList());
         resp.weeklyIssues = buildKeywordRanks(range.end.minusDays(WEEKLY_ISSUE_DAYS - 1), range.end);
         resp.monthlyIssues = buildKeywordRanks(range.end.minusDays(MONTHLY_ISSUE_DAYS - 1), range.end);
+        resp.weeklyIssueTitles = buildIssueTitles(range.end.minusDays(WEEKLY_ISSUE_DAYS - 1), range.end, ISSUE_TITLE_LIMIT);
+        resp.monthlyIssueTitles = buildIssueTitles(range.end.minusDays(MONTHLY_ISSUE_DAYS - 1), range.end, ISSUE_TITLE_LIMIT);
+        resp.rangeIssueTitles = buildIssueTitles(range.start, range.end, ISSUE_TITLE_LIMIT);
         resp.keywordTrends = buildKeywordTrends(range.start, range.end);
 
         if (keywords == null || keywords.isEmpty()) {
@@ -234,6 +245,9 @@ public class ReportService {
             impact.score = computeImpactScore(clusterArticles);
             impact.articleCount = clusterArticles.size();
             resp.impacts.add(impact);
+
+            List<CompetitorMentionRow> mentionRows = buildMentionedKeywords(range.start, range.end, kw, baseWhere);
+            resp.mentionedKeywords.addAll(mentionRows);
         }
 
         resp.pins = buildPins(resp.daily);
@@ -252,10 +266,14 @@ public class ReportService {
         public List<CompetitorInsightRow> insights;
         public List<CompetitorPinRow> pins;
         public List<CompetitorImpactRow> impacts;
+        public List<CompetitorMentionRow> mentionedKeywords;
         public List<KeywordRankRow> keywordRanks;
         public List<String> autoCompetitors;
         public List<KeywordRankRow> weeklyIssues;
         public List<KeywordRankRow> monthlyIssues;
+        public List<IssueTitleRow> weeklyIssueTitles;
+        public List<IssueTitleRow> monthlyIssueTitles;
+        public List<IssueTitleRow> rangeIssueTitles;
         public List<KeywordTrendRow> keywordTrends;
     }
 
@@ -330,6 +348,12 @@ public class ReportService {
         public int articleCount;
     }
 
+    public static class CompetitorMentionRow {
+        public String keyword;
+        public String tag;
+        public int count;
+    }
+
     public static class KeywordRankRow {
         public String keyword;
         public int count;
@@ -338,6 +362,13 @@ public class ReportService {
     public static class KeywordTrendRow {
         public String keyword;
         public List<TrendPoint> points;
+    }
+
+    public static class IssueTitleRow {
+        public String title;
+        public String link;
+        public String source;
+        public LocalDate date;
     }
 
     public static class TrendPoint {
@@ -394,12 +425,15 @@ public class ReportService {
         );
 
         Map<String, Integer> counts = new HashMap<>();
+        Map<String, String> display = new HashMap<>();
         for (Object raw : tagRows) {
             List<String> tags = parseTags(raw);
             Set<String> unique = new HashSet<>(tags);
             for (String tag : unique) {
-                if (tag == null || tag.isBlank()) continue;
-                counts.put(tag, counts.getOrDefault(tag, 0) + 1);
+                if (!isMeaningfulKeyword(tag)) continue;
+                String normalized = normalizeKeyword(tag);
+                counts.put(normalized, counts.getOrDefault(normalized, 0) + 1);
+                display.putIfAbsent(normalized, tag.trim());
             }
         }
 
@@ -408,11 +442,103 @@ public class ReportService {
             .limit(KEYWORD_RANK_LIMIT)
             .map(e -> {
                 KeywordRankRow row = new KeywordRankRow();
-                row.keyword = e.getKey();
+                row.keyword = display.getOrDefault(e.getKey(), e.getKey());
                 row.count = e.getValue();
                 return row;
             })
             .collect(Collectors.toList());
+    }
+
+    private List<IssueTitleRow> buildIssueTitles(LocalDate start, LocalDate end, int limit) {
+        int fetchLimit = Math.max(limit * ISSUE_TITLE_FETCH_MULTIPLIER, limit);
+        List<IssueTitleRow> rows = jdbcTemplate.query(
+            "SELECT p.id, r.title, r.link, r.published_date, r.source, p.kor_title, p.kor_summary, p.id_summary, p.importance " +
+                "FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                "WHERE p.is_pharma_related IS TRUE AND r.published_date BETWEEN ? AND ? " +
+                "ORDER BY p.importance DESC NULLS LAST, r.published_date DESC NULLS LAST, p.id DESC " +
+                "LIMIT ?",
+            (rs, rowNum) -> {
+                IssueTitleRow row = new IssueTitleRow();
+                String korTitle = rs.getString("kor_title");
+                String rawTitle = rs.getString("title");
+                String summary = rs.getString("kor_summary");
+                if (summary == null || summary.isBlank()) {
+                    summary = rs.getString("id_summary");
+                }
+                row.title = buildIssueLine(summary, korTitle != null && !korTitle.isBlank() ? korTitle : rawTitle);
+                row.link = rs.getString("link");
+                row.source = rs.getString("source");
+                Date d = rs.getDate("published_date");
+                row.date = d != null ? d.toLocalDate() : null;
+                return row;
+            },
+            Date.valueOf(start),
+            Date.valueOf(end),
+            fetchLimit
+        );
+
+        List<IssueTitleRow> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (IssueTitleRow row : rows) {
+            String key = normalizeTitle(row.title);
+            if (key.isBlank() || seen.contains(key)) continue;
+            seen.add(key);
+            out.add(row);
+            if (out.size() >= limit) break;
+        }
+        return out;
+    }
+
+    private List<CompetitorMentionRow> buildMentionedKeywords(LocalDate start, LocalDate end, String keyword, String baseWhere) {
+        List<Object> tagRows = jdbcTemplate.query(
+            "SELECT p.tags FROM processed_news p JOIN raw_news r ON r.id = p.raw_news_id " +
+                "WHERE " + baseWhere + " AND p.tags IS NOT NULL",
+            (rs, rowNum) -> rs.getObject("tags"),
+            Date.valueOf(start),
+            Date.valueOf(end),
+            keyword,
+            keyword
+        );
+
+        Map<String, Integer> counts = new HashMap<>();
+        Map<String, String> display = new HashMap<>();
+        String normalizedKeyword = normalizeKeyword(keyword);
+        for (Object raw : tagRows) {
+            List<String> tags = parseTags(raw);
+            Set<String> unique = new HashSet<>(tags);
+            for (String tag : unique) {
+                if (!isMeaningfulKeyword(tag)) continue;
+                String normalized = normalizeKeyword(tag);
+                if (normalized.equals(normalizedKeyword)) continue;
+                counts.put(normalized, counts.getOrDefault(normalized, 0) + 1);
+                display.putIfAbsent(normalized, tag.trim());
+            }
+        }
+
+        return counts.entrySet().stream()
+            .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+            .limit(10)
+            .map(e -> {
+                CompetitorMentionRow row = new CompetitorMentionRow();
+                row.keyword = keyword;
+                row.tag = display.getOrDefault(e.getKey(), e.getKey());
+                row.count = e.getValue();
+                return row;
+            })
+            .collect(Collectors.toList());
+    }
+
+    private static String buildIssueLine(String summary, String fallbackTitle) {
+        String base = summary != null && !summary.isBlank() ? summary : fallbackTitle;
+        if (base == null) return "";
+        String trimmed = base.replace("*", "").trim();
+        if (trimmed.isEmpty()) return "";
+        String[] parts = trimmed.split("[\\.\\!\\?\\u3002\\uFF0E\\uFF01\\uFF1F]|\\n");
+        String line = parts.length > 0 ? parts[0].trim() : trimmed;
+        if (line.length() > 120) {
+            line = line.substring(0, 120).trim();
+        }
+        return line;
     }
 
     private List<KeywordTrendRow> buildKeywordTrends(LocalDate start, LocalDate end) {
@@ -560,12 +686,12 @@ public class ReportService {
             .sorted(Comparator.comparingInt((Cluster c) -> c.articles.size()).reversed())
             .map(c -> c.title)
             .filter(s -> s != null && !s.isBlank())
-            .limit(2)
+            .limit(3)
             .collect(Collectors.toList());
         if (titles.isEmpty()) {
             return "";
         }
-        return "주요 이슈: " + String.join(", ", titles);
+        return "Trend summary: " + String.join(" - ", titles);
     }
 
     private static List<CompetitorPinRow> buildPins(List<CompetitorDailyRow> dailyRows) {
@@ -663,6 +789,74 @@ public class ReportService {
         return tokens;
     }
 
+    private static boolean isMeaningfulKeyword(String keyword) {
+        if (keyword == null) return false;
+        String normalized = normalizeKeyword(keyword);
+        if (normalized.isBlank()) return false;
+        if (isAllowlistedKeyword(normalized)) return true;
+        if (normalized.length() < 3) return false;
+        if (normalized.matches("\\d+")) return false;
+        if (KEYWORD_STOPWORDS.contains(normalized)) return false;
+        return true;
+    }
+
+    private static String normalizeKeyword(String keyword) {
+        if (keyword == null) return "";
+        String normalized = keyword.toLowerCase(Locale.ROOT)
+            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
+            .trim();
+        normalized = normalized.replaceAll("\\s+", " ");
+        return normalized;
+    }
+
+    private static String normalizeTitle(String title) {
+        if (title == null) return "";
+        String normalized = title.toLowerCase(Locale.ROOT)
+            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
+            .trim();
+        return normalized.replaceAll("\\s+", " ");
+    }
+
+    private static boolean isAllowlistedKeyword(String normalized) {
+        for (String token : KEYWORD_ALLOWLIST) {
+            if (normalized.contains(token)) return true;
+        }
+        return false;
+    }
+
+    private static Set<String> buildKeywordStopwords() {
+        Set<String> out = new HashSet<>();
+        Collections.addAll(out,
+            "industri", "farmasi", "industri farmasi", "perusahaan", "pasar", "produk",
+            "pemerintah", "indonesia", "nasional", "tahun", "harga", "kesehatan",
+            "obat", "obatan", "pharma", "pharmaceutical", "industry", "market",
+            "company", "companies", "produk obat", "obat generik", "obat baru",
+            "pertumbuhan", "penjualan", "laba", "rugi", "saham", "investasi",
+            "regulasi", "kebijakan", "kementerian", "otoritas", "program", "peluang",
+            "riset", "penelitian", "kinerja", "target", "realisasi", "permintaan",
+            "bpom", "kemenkes", "kementerian kesehatan", "kementerian kesehatan ri",
+            "kementerian kesehatan republik indonesia", "bpjs", "bpjs kesehatan", "jkn",
+            "asuransi", "asuransi kesehatan", "jaminan kesehatan", "izin edar",
+            "gmp", "kosmetik", "cosmetic", "cosmetics", "traditional medicine",
+            "kerjasama", "kolaborasi", "kerja sama", "kerja-sama",
+            "ekspor", "impor", "bisnis", "investasi farmasi"
+        );
+        return out;
+    }
+
+    private static List<String> buildKeywordAllowlist() {
+        List<String> out = new ArrayList<>();
+        Collections.addAll(out,
+            "izin edar", "izin", "registrasi", "registration", "approval", "approved",
+            "authorization", "clearance", "tracking", "follow up",
+            "new drug", "new medicine", "novel drug", "vaksin", "vaccine",
+            "biosimilar", "biologic", "api", "bahan baku",
+            "clinical", "clinical trial", "phase i", "phase ii", "phase iii",
+            "produk", "product", "brand", "trade name"
+        );
+        return out;
+    }
+
     private static double jaccard(Set<String> a, Set<String> b) {
         if (a.isEmpty() || b.isEmpty()) {
             return 0.0;
@@ -726,3 +920,6 @@ public class ReportService {
         }
     }
 }
+
+
+
