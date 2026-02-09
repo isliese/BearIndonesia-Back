@@ -2,6 +2,7 @@ package com.bearindonesia.service;
 
 import com.bearindonesia.dto.ArticleDto;
 import com.bearindonesia.dto.KeywordDto;
+import com.bearindonesia.dto.NewsletterCoreNewsItemDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -165,6 +166,38 @@ public class ArticleService {
                 p.id DESC
             """;
         return jdbcTemplate.query(sql, (rs, rowNum) -> toDto(rs), start, end);
+    }
+
+    public List<NewsletterCoreNewsItemDto> listTopCoreNewsByMonth(int year, int month, int limit) {
+        YearMonth ym = YearMonth.of(year, month);
+        LocalDate start = ym.atDay(1);
+        LocalDate end = ym.atEndOfMonth();
+        String sql = """
+            SELECT
+                COALESCE(p.kor_title, r.title) AS title,
+                r.img AS img
+            FROM processed_news p
+            JOIN raw_news r ON r.id = p.raw_news_id
+            WHERE p.is_pharma_related IS TRUE
+              AND r.published_date BETWEEN ? AND ?
+            ORDER BY
+                p.importance DESC NULLS LAST,
+                r.published_date DESC NULLS LAST,
+                p.id DESC
+            LIMIT ?
+            """;
+        return jdbcTemplate.query(
+            sql,
+            (rs, rowNum) -> {
+                NewsletterCoreNewsItemDto dto = new NewsletterCoreNewsItemDto();
+                dto.title = rs.getString("title");
+                dto.img = rs.getString("img");
+                return dto;
+            },
+            start,
+            end,
+            limit
+        );
     }
 
     public byte[] exportProcessedArticlesExcel(int year, int month) {
