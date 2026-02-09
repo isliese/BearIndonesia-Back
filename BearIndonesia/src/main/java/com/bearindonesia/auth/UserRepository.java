@@ -1,5 +1,7 @@
 package com.bearindonesia.auth;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -16,7 +18,7 @@ public class UserRepository {
 
     public Optional<UserInfo> findByEmailAndPassword(String email, String password) {
         String sql = """
-            SELECT id, username, name
+            SELECT id, username, name, role
             FROM users_info
             WHERE username = ?
               AND password_hash = crypt(?, password_hash)
@@ -30,7 +32,7 @@ public class UserRepository {
         String sql = """
             INSERT INTO users_info (username, name, password_hash)
             VALUES (?, ?, crypt(?, gen_salt('bf')))
-            RETURNING id, username, name
+            RETURNING id, username, name, role
             """;
         return jdbcTemplate.queryForObject(sql, userRowMapper(), email, name, password);
     }
@@ -50,11 +52,37 @@ public class UserRepository {
         return updated > 0;
     }
 
+    public List<AdminUserResponse> listUsers() {
+        String sql = """
+            SELECT id, username, name, role, created_at, last_login_at
+            FROM users_info
+            ORDER BY id ASC
+            """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new AdminUserResponse(
+                rs.getLong("id"),
+                rs.getString("username"),
+                rs.getString("name"),
+                UserRole.fromDb(rs.getString("role")),
+                rs.getObject("created_at", OffsetDateTime.class),
+                rs.getObject("last_login_at", OffsetDateTime.class)
+        ));
+    }
+
+    public boolean updateRole(Long userId, UserRole role) {
+        int updated = jdbcTemplate.update(
+                "UPDATE users_info SET role = ? WHERE id = ?",
+                (role == null ? UserRole.USER : role).name(),
+                userId
+        );
+        return updated > 0;
+    }
+
     private RowMapper<UserInfo> userRowMapper() {
         return (rs, rowNum) -> new UserInfo(
                 rs.getLong("id"),
                 rs.getString("username"),
-                rs.getString("name")
+                rs.getString("name"),
+                UserRole.fromDb(rs.getString("role"))
         );
     }
 }

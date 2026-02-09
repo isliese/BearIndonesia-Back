@@ -22,8 +22,8 @@ public class AuthService {
         } catch (DuplicateKeyException e) {
             throw new DuplicateEmailException("이미 사용 중인 이메일입니다.");
         }
-        String token = jwtService.createToken(user.id(), user.email(), user.name());
-        return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name()));
+        String token = jwtService.createToken(user.id(), user.email(), user.name(), user.role());
+        return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name(), user.role()));
     }
 
     public AuthResponse login(LoginRequest req) {
@@ -32,8 +32,8 @@ public class AuthService {
                 .findByEmailAndPassword(req.email().trim(), req.password())
                 .orElseThrow(() -> new UnauthorizedException("이메일 또는 비밀번호가 올바르지 않습니다."));
         userRepository.updateLastLogin(user.id());
-        String token = jwtService.createToken(user.id(), user.email(), user.name());
-        return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name()));
+        String token = jwtService.createToken(user.id(), user.email(), user.name(), user.role());
+        return new AuthResponse(token, new UserResponse(user.id(), user.email(), user.name(), user.role()));
     }
 
     public void changePassword(Long userId, ChangePasswordRequest req) {

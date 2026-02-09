@@ -14,4 +14,12 @@ public final class SecurityUtils {
         }
         return user;
     }
+
+    public static AuthUser requireAdmin() {
+        AuthUser user = requireUser();
+        if (user.role() != UserRole.ADMIN) {
+            throw new ForbiddenException("권한이 없습니다.");
+        }
+        return user;
+    }
 }

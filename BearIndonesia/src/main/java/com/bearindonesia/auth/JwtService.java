@@ -29,12 +29,13 @@ public class JwtService {
         this.expiresSeconds = Math.max(1, expiresMinutes) * 60L;
     }
 
-    public String createToken(Long userId, String email, String name) {
+    public String createToken(Long userId, String email, String name, UserRole role) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(email)
                 .claim("uid", userId)
                 .claim("name", name)
+                .claim("role", (role == null ? UserRole.USER : role).name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expiresSeconds)))
                 .signWith(key)
@@ -50,6 +51,7 @@ public class JwtService {
         Long userId = claims.get("uid", Long.class);
         String email = claims.getSubject();
         String name = claims.get("name", String.class);
-        return new AuthUser(userId, email, name);
+        String roleStr = claims.get("role", String.class);
+        return new AuthUser(userId, email, name, UserRole.fromDb(roleStr));
     }
 }
