@@ -20,9 +20,11 @@ import jakarta.servlet.DispatcherType;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final SecurityErrorHandlers securityErrorHandlers;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, SecurityErrorHandlers securityErrorHandlers) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.securityErrorHandlers = securityErrorHandlers;
     }
 
     /**
@@ -34,6 +36,10 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable());
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.exceptionHandling(eh -> eh
+                .authenticationEntryPoint(securityErrorHandlers.authenticationEntryPoint())
+                .accessDeniedHandler(securityErrorHandlers.accessDeniedHandler())
+        );
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register").permitAll()
                 .requestMatchers("/auth/me", "/auth/change-password").authenticated()
