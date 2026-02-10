@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/admin")
+@RequestMapping({"/admin", "/api/admin"})
 public class AdminUserController {
 
     private final UserRepository userRepository;
@@ -47,4 +47,3 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 }
-

@@ -14,72 +14,52 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<ErrorResponse> handleUnauthorized(
+    public ResponseEntity<MessageResponse> handleUnauthorized(
             UnauthorizedException ex,
             HttpServletRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.of(
-                        HttpStatus.UNAUTHORIZED,
-                        ex.getMessage(),
-                        request.getRequestURI()
-                ));
+                .body(new MessageResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(DuplicateEmailException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateEmail(
+    public ResponseEntity<MessageResponse> handleDuplicateEmail(
             DuplicateEmailException ex,
             HttpServletRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(
-                        HttpStatus.CONFLICT,
-                        ex.getMessage(),
-                        request.getRequestURI()
-                ));
+                .body(new MessageResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<ErrorResponse> handleForbidden(
+    public ResponseEntity<MessageResponse> handleForbidden(
             ForbiddenException ex,
             HttpServletRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ErrorResponse.of(
-                        HttpStatus.FORBIDDEN,
-                        ex.getMessage(),
-                        request.getRequestURI()
-                ));
+                .body(new MessageResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidBody(
+    public ResponseEntity<MessageResponse> handleInvalidBody(
             HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(
-                        HttpStatus.BAD_REQUEST,
-                        "요청 형식이 올바르지 않습니다.",
-                        request.getRequestURI()
-                ));
+                .body(new MessageResponse("요청 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleBadRequest(
+    public ResponseEntity<MessageResponse> handleBadRequest(
             IllegalArgumentException ex,
             HttpServletRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(
-                        HttpStatus.BAD_REQUEST,
-                        ex.getMessage(),
-                        request.getRequestURI()
-                ));
+                .body(new MessageResponse(ex.getMessage()));
     }
 }
