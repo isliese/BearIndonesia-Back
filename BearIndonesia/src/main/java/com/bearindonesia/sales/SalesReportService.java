@@ -1,8 +1,6 @@
 package com.bearindonesia.sales;
 
 import com.bearindonesia.auth.AuthUser;
-import java.io.BufferedInputStream;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -14,13 +12,11 @@ public class SalesReportService {
     private static final long MAX_UPLOAD_BYTES = 20L * 1024 * 1024;
 
     private final SalesReportRepository repository;
-    private final SalesReportExcelParser parser;
-    private final SalesReportHtmlRenderer renderer;
+    private final SalesReportGeneratorClient generatorClient;
 
-    public SalesReportService(SalesReportRepository repository, SalesReportExcelParser parser, SalesReportHtmlRenderer renderer) {
+    public SalesReportService(SalesReportRepository repository, SalesReportGeneratorClient generatorClient) {
         this.repository = repository;
-        this.parser = parser;
-        this.renderer = renderer;
+        this.generatorClient = generatorClient;
     }
 
     public List<SalesReportListResponse> list(AuthUser admin) {
@@ -42,10 +38,8 @@ public class SalesReportService {
             throw new IllegalArgumentException("xlsx 파일만 업로드할 수 있습니다.");
         }
 
-        try (var in = new BufferedInputStream(file.getInputStream())) {
-            SalesReportData data = parser.parse(in);
-            OffsetDateTime now = OffsetDateTime.now();
-            String html = renderer.render(title, originalFilename, new SalesReportCreatedBy(admin.id(), admin.name(), admin.email()), now, data);
+        try {
+            String html = generatorClient.generateHtml(title, file);
             byte[] bytes = file.getBytes();
             return repository.create(title, originalFilename, bytes, html, admin.id());
         } catch (IllegalArgumentException e) {
@@ -70,4 +64,3 @@ public class SalesReportService {
         }
     }
 }
-
