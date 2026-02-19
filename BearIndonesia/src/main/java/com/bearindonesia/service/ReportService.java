@@ -235,11 +235,6 @@ public class ReportService {
                 resp.clusters.add(row);
             }
 
-            CompetitorInsightRow insight = new CompetitorInsightRow();
-            insight.keyword = kw;
-            insight.summary = buildInsightSummary(clusters);
-            resp.insights.add(insight);
-
             CompetitorImpactRow impact = new CompetitorImpactRow();
             impact.keyword = kw;
             impact.score = computeImpactScore(clusterArticles);
@@ -248,6 +243,18 @@ public class ReportService {
 
             List<CompetitorMentionRow> mentionRows = buildMentionedKeywords(range.start, range.end, kw, baseWhere);
             resp.mentionedKeywords.addAll(mentionRows);
+
+            CompetitorInsightRow insight = new CompetitorInsightRow();
+            insight.keyword = kw;
+            insight.summary = buildStrategicInsightSummary(
+                kw,
+                totalRow,
+                mentionRows,
+                clusterArticles,
+                range.start,
+                range.end
+            );
+            resp.insights.add(insight);
         }
 
         resp.pins = buildPins(resp.daily);
@@ -694,6 +701,151 @@ public class ReportService {
         return "Trend summary: " + String.join(" - ", titles);
     }
 
+        private static String buildStrategicInsightSummary(
+        String keyword,
+        CompetitorTotalRow totalRow,
+        List<CompetitorMentionRow> mentionRows,
+        List<ClusterArticle> articles,
+        LocalDate start,
+        LocalDate end
+    ) {
+        int totalCount = totalRow == null ? 0 : Math.max(0, totalRow.count);
+        long periodDays = ChronoUnit.DAYS.between(start, end) + 1;
+        if (totalCount == 0) {
+            return keyword + "는 최근 " + periodDays + "일 기준으로 집계된 관련 기사가 없어 전략 동향을 판단하기에 데이터가 충분하지 않습니다.";
+        }
+
+        String merged = buildInsightSourceText(mentionRows, articles);
+        StrategicCategory category = detectStrategicCategory(merged);
+        List<String> topKeywords = extractTopMentionKeywords(mentionRows);
+        String k1 = topKeywords.size() > 0 ? topKeywords.get(0) : "핵심 키워드";
+        String k2 = topKeywords.size() > 1 ? topKeywords.get(1) : "시장 이슈";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("최근 ").append(keyword).append("는 ")
+            .append(category.label).append(" 관련 대응이 중심에 있는 흐름으로 보입니다. ");
+        sb.append(k1).append(", ").append(k2)
+            .append(" 언급이 반복적으로 확인되며 ")
+            .append(category.strategyEstimate).append(" 가능성이 있습니다. ");
+        sb.append("이는 단기 이슈 대응을 넘어 ")
+            .append(category.midLongDirection).append(" 관점에서 해석될 수 있습니다. ");
+        sb.append("우리 회사 입장에서는 ")
+            .append(category.ourImpact).append(" 가능성을 염두에 두고, ")
+            .append(category.competitionImpact).append(" 측면의 모니터링이 필요합니다.");
+
+        if (totalRow != null) {
+            if (totalRow.delta > 0) {
+                sb.append(" 관련 보도는 최근 증가하는 추세입니다.");
+            } else if (totalRow.delta < 0) {
+                sb.append(" 관련 보도는 최근 완화되는 흐름입니다.");
+            }
+        }
+        return sb.toString().trim();
+    }
+    private static String buildInsightSourceText(List<CompetitorMentionRow> mentionRows, List<ClusterArticle> articles) {
+        List<String> out = new ArrayList<>();
+        if (mentionRows != null) {
+            for (CompetitorMentionRow m : mentionRows) {
+                if (m != null && m.tag != null && !m.tag.isBlank()) out.add(m.tag);
+            }
+        }
+        if (articles != null) {
+            for (ClusterArticle a : articles) {
+                if (a == null) continue;
+                if (a.korSummary != null && !a.korSummary.isBlank()) out.add(a.korSummary);
+                else if (a.idSummary != null && !a.idSummary.isBlank()) out.add(a.idSummary);
+                else if (a.korTitle != null && !a.korTitle.isBlank()) out.add(a.korTitle);
+                else if (a.title != null && !a.title.isBlank()) out.add(a.title);
+            }
+        }
+        return String.join(" ", out).toLowerCase(Locale.ROOT);
+    }
+
+    private static List<String> extractTopMentionKeywords(List<CompetitorMentionRow> mentionRows) {
+        if (mentionRows == null || mentionRows.isEmpty()) return Collections.emptyList();
+        return mentionRows.stream()
+            .filter(m -> m != null && m.tag != null && !m.tag.isBlank())
+            .sorted((a, b) -> Integer.compare(b.count, a.count))
+            .map(m -> m.tag)
+            .distinct()
+            .limit(2)
+            .collect(Collectors.toList());
+    }
+
+        private static StrategicCategory detectStrategicCategory(String text) {
+        String t = text == null ? "" : text;
+        int investment = countMatches(t, "투자", "주가", "매수", "외국인", "자사주", "수급", "증권사", "목표가");
+        int ma = countMatches(t, "합병", "인수", "m&a", "acquisition", "merger", "포트폴리오", "외형 성장");
+        int product = countMatches(t, "의약품", "신약", "제품", "임상", "pipeline", "launch", "drug", "medicine");
+        int regulation = countMatches(t, "규제", "정책", "정부", "허가", "승인", "bpom", "moh", "policy", "approval");
+
+        int max = Math.max(Math.max(investment, ma), Math.max(product, regulation));
+        if (max == 0) return StrategicCategory.DEFAULT;
+        if (max == investment) return StrategicCategory.INVESTMENT;
+        if (max == ma) return StrategicCategory.MA;
+        if (max == product) return StrategicCategory.PRODUCT;
+        return StrategicCategory.REGULATION;
+    }
+
+    private static int countMatches(String text, String... needles) {
+        int score = 0;
+        for (String n : needles) {
+            if (text.contains(n.toLowerCase(Locale.ROOT))) score++;
+        }
+        return score;
+    }
+
+    private static class StrategicCategory {
+        static final StrategicCategory INVESTMENT = new StrategicCategory(
+            "투자/주가",
+            "시장 내 투자 관심도 확대",
+            "자본시장 대응 역량 강화",
+            "투자심리 변화",
+            "시장 포지셔닝 경쟁"
+        );
+        static final StrategicCategory MA = new StrategicCategory(
+            "M&A/합병",
+            "사업 확장 전략 강화",
+            "포트폴리오 재편 가능성",
+            "시장 재편",
+            "경쟁 구도 변화"
+        );
+        static final StrategicCategory PRODUCT = new StrategicCategory(
+            "제품/신약/임상",
+            "제품 포트폴리오 확장",
+            "연구개발 기반 성장 모델 강화",
+            "동일 치료영역 경쟁 심화",
+            "시장 점유율 변동"
+        );
+        static final StrategicCategory REGULATION = new StrategicCategory(
+            "규제/정책",
+            "규제 환경 변화 대응",
+            "승인 및 제도 대응 체계 고도화",
+            "규제 대응 부담",
+            "승인 속도 경쟁"
+        );
+        static final StrategicCategory DEFAULT = new StrategicCategory(
+            "사업/시장",
+            "사업 전략 재정비",
+            "중장기 전략 방향 조정",
+            "경쟁 환경 변화",
+            "시장 대응 전략"
+        );
+
+        final String label;
+        final String strategyEstimate;
+        final String midLongDirection;
+        final String ourImpact;
+        final String competitionImpact;
+
+        StrategicCategory(String label, String strategyEstimate, String midLongDirection, String ourImpact, String competitionImpact) {
+            this.label = label;
+            this.strategyEstimate = strategyEstimate;
+            this.midLongDirection = midLongDirection;
+            this.ourImpact = ourImpact;
+            this.competitionImpact = competitionImpact;
+        }
+    }
     private static List<CompetitorPinRow> buildPins(List<CompetitorDailyRow> dailyRows) {
         if (dailyRows == null || dailyRows.isEmpty()) {
             return Collections.emptyList();
@@ -920,6 +1072,8 @@ public class ReportService {
         }
     }
 }
+
+
 
 
 
